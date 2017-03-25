@@ -34,7 +34,10 @@ this = sys.modules[__name__]
 CHEF_D = '/etc/chef'
 
 def amRoot():
-  """Are we root?"""
+  """Are we root?
+
+  :rtype: bool
+  """
   if os.getuid() == 0:
     return True
   else:
@@ -45,13 +48,19 @@ def system_call(command):
   """Run a command and return stdout.
 
   Would be better to use subprocess.check_output, but this works on 2.6,
-  which is still the system Python on CentOS 7."""
+  which is still the system Python on CentOS 7.
+
+  :param str command: Command to run
+  :rtype: str
+  """
   p = subprocess.Popen([command], stdout=subprocess.PIPE, shell=True)
   return p.stdout.read()
 
 
 def getCustomLogger(name):
-  """Set up logging"""
+  """Set up logging
+  :param str name: What log level to set
+  """
   valid_log_levels = ['CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'WARNING']
 
   logLevel = readKnob('logLevel')
@@ -73,7 +82,11 @@ def getCustomLogger(name):
 # Helpers for dealing with tag/knob data
 
 def readKnob(knobName, knobDirectory='/etc/knobs'):
-  """Read a knob file and return the contents"""
+  """Read a knob file and return the contents
+
+  :param str name: Which tag/knob to look for
+  :rtype: str
+  """
   assert isinstance(knobDirectory, basestring), ("knobDirectory must be a string but is %r" % knobDirectory)
   assert isinstance(knobName, basestring), ("knobName must be a string but is %r" % knobName)
   knobpath = "%s/%s" % (knobDirectory, knobName)
@@ -89,7 +102,12 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
 
 
 def readKnobOrTag(name, connection=None):
-  """Read a knob file or EC2 instance tag"""
+  """Read a knob file or EC2 instance tag
+
+  :param str name: Which tag/knob to look for
+  :param boto.ec2.connection connection: A boto connection to ec2
+  :rtype: str
+  """
 
   # First, look for a knob file. If that exists, we don't care what the
   # tags say.  This way we work in vagrant VMs or on bare metal.
@@ -113,7 +131,10 @@ def readKnobOrTag(name, connection=None):
 
 
 def loadHostname(connection=None):
-  """Determine what an instance's hostname should be"""
+  """Determine what an instance's hostname should be
+
+  :rtype: str
+  """
   hostname = readKnobOrTag(name='Hostname')
   if not hostname:
     this.logger.debug('No hostname tag or knob, falling back to hostname command output')
@@ -123,21 +144,30 @@ def loadHostname(connection=None):
 
 
 def getEnvironment(connection=None):
-  """Determine an instance's Environment"""
+  """Determine an instance's Environment
+
+  :rtype: str
+  """
   environment = readKnobOrTag(name='Environment')
   this.logger.debug("Environment: %s", environment)
   return environment
 
 
 def getNodePrefix(connection=None):
-  """Determine an instance's node prefix. Will be used in ASGs."""
+  """Determine an instance's node prefix. Will be used in ASGs.
+
+  :rtype: str
+  """
   node = readKnobOrTag(name='Node')
   this.logger.debug("Node: %s", node)
   return node
 
 
 def getRunlist(connection=None):
-  """Determine an instance's runlist"""
+  """Determine an instance's runlist
+
+  :rtype: str
+  """
   runlist = readKnobOrTag(name='Runlist')
   this.logger.debug("Runlist: %s", runlist)
   return runlist
@@ -147,6 +177,8 @@ def inEC2():
   """Detect if we're running in EC2.
 
   This check only works if we're running as root
+
+  :rtype: bool
   """
   dmidata = system_call('dmidecode -s bios-version').strip().lower()
   this.logger.debug("dmidata: %s", dmidata)
@@ -158,6 +190,9 @@ def generateNodeName(connection=None):
 
   If a node prefix has been set (either in TAGS or /etc/knobs/Node), we
   want AWS_REGION-NODE_PREFIX-INSTANCE_ID
+
+  :param boto.ec2.connection connection: A boto connection to ec2
+  :rtype: str
   """
   logger = this.logger
   logger.info('Determining Chef node name')
@@ -182,23 +217,32 @@ def generateNodeName(connection=None):
 # Chef helper functions
 
 def isCheffed():
-  """Detect if Chef has been installed on a system."""
+  """Detect if Chef has been installed on a system.
+
+  rtype: bool
+  """
   logger = this.logger
   logger.info('Checking for existing Chef installation')
-  chef_files = ["%s/client.rb" % CHEF_D, "%s/client.pem"]
+  chef_files = ["%s/client.rb" % CHEF_D, "%s/client.pem" % CHEF_D]
   for chef_file in chef_files:
     logger.debug("  Checking for %s", chef_file)
     if not os.path.isfile(chef_file):
       logger.debug("  %s missing, Chef not installed", chef_file)
       return False
-  logger.debug("Chef client files found")
+  logger.critical("Chef client files found")
   return True
 
 
 def generateClientConfiguration(nodeName=None,
                                 validationClientName=None,
                                 chefOrganization=None):
-  """Generate client.rb contents"""
+  """Generate client.rb contents
+
+  :param str nodeName: node's chef name
+  :param str validationClientName: what name to use with the cert
+  :param str chefOrganization: What organization name to use with Hosted Chef
+  :rtype: str
+  """
 
   # We want to share our logger object across the module
   logger = this.logger
@@ -222,14 +266,20 @@ node_name "%(nodeName)s"
   return clientConfiguration
 
 
-def bootstrap(connection=None):
-  """Installs chef-client on an instance"""
+def infect(connection=None):
+  """Installs chef-client on an instance
+
+  :param boto.ec2.connection connection: A boto connection to ec2
+  """
   if not amRoot():
     raise RuntimeError, "This must be run as root"
 
   # We want to share our logger object across the module
   this.logger = getCustomLogger(name='sourdough-bootstrap')
   logger = this.logger
+
+  if isCheffed():
+    raise RuntimeError, "This machine is already Cheffed"
 
   logger.info('Assimilating instance into Chef')
 
@@ -297,8 +347,11 @@ def bootstrap(connection=None):
   check_call(borg_command)
 
 
-def run(connection=None):
-  """Run chef-client on an instance, reading Runlist and Enviroment from tags"""
+def runner(connection=None):
+  """Run chef-client on an instance, reading Runlist and Enviroment from tags
+
+  :param boto.ec2.connection connection: A boto connection to ec2
+  """
 
   if not amRoot():
     raise RuntimeError, "This must be run as root"
@@ -329,6 +382,14 @@ def run(connection=None):
   logger.debug("chefCommand: %s", chefCommand)
 
   check_call(chefCommand)
+
+
+def deregisterFromChef():
+  """Deregister a node from Chef"""
+  clientID = system_call("awk '/node_name/ {print $2}' < /etc/chef/client.rb").replace('"', '').strip()
+  system_call("knife node delete -y -c /etc/chef/client.rb %s" % (clientID))
+  system_call("knife client delete -y -c /etc/chef/client.rb %s" % (clientID))
+
 
 if __name__ == '__main__':
   run()

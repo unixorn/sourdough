@@ -35,7 +35,7 @@ def system_call(command):
 
 
 name = "sourdough"
-version = "0.1.%s" % (system_call('git rev-list HEAD --count'))
+version = "0.1.%s" % (system_call('git rev-list HEAD --count').strip())
 
 
 class CleanCommand(Command):
@@ -71,7 +71,7 @@ setup(
   packages=find_packages(),
   install_requires=[
     "boto>=2.38.0",
-    "haze>=0.0.12",
+    "haze>=0.0.13",
     "logrus>=0.0.2",
     "pytoml>=0.1.11"
   ],
@@ -84,14 +84,16 @@ setup(
     "Development Status :: 3 - Alpha",
     "Operating System :: POSIX",
     "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 2.7",
+    "Programming Language :: Python :: 2.6",
     "Topic :: System :: Systems Administration",
   ],
   keywords=['aws', 'chef', 'cloud', 'configuration-management', 'ec2'],
   entry_points={
     "console_scripts": [
-      "sourdough-starter = %s.sourdough:run" % name,
-      "sourdough-bootstrap = %s.sourdough:bootstrap" % name
+      "sourdough = %s.cli.commands:sourdoughDriver" % name,
+      "sourdough-bootstrap = %s.sourdough:infect" % name,
+      "sourdough-deregister = %s.sourdough:deregisterFromChef" % name,
+      "sourdough-starter = %s.sourdough:runner" % name
     ]
   }
 )
