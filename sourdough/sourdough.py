@@ -112,7 +112,7 @@ def readKnobOrTag(name, connection=None):
       return None
 
 
-def getHostname(connection=None):
+def loadHostname(connection=None):
   """Determine what an instance's hostname should be"""
   hostname = readKnobOrTag(name='Hostname')
   if not hostname:
@@ -165,17 +165,17 @@ def generateNodeName(connection=None):
     logger.info('Running in EC2')
     region = haze.ec2.myRegion()
     node_name = "%s" % region
-    try:
-      node_prefix = getNodePrefix()
+
+    node_prefix = getNodePrefix()
+    if node_prefix:
       node_name = "%s-%s" % (node_name, node_prefix)
-    except KeyError:
-      logger.info('No node prefix set, trying to use hostname')
-      node_name = "%s-%s" % (node_name, getHostname())
-    instanceID = haze.ec2.myInstanceID()
-    node_name = "%s-%s" % (node_name, instanceID)
+      instanceID = haze.ec2.myInstanceID()
+      node_name = "%s-%s" % (node_name, instanceID)
+    else:
+      node_name = "%s-%s" % (node_name, loadHostname())
   else:
     logger.info('Not in EC2, using hostname')
-    node_name = getHostname()
+    node_name = loadHostname()
   return node_name
 
 
@@ -249,38 +249,51 @@ def bootstrap(connection=None):
 
   # Load sourdough configuration values
   with open('/etc/sourdough/sourdough.toml','r') as yeastFile:
-    sourdough_configuration = toml.load(yeastFile)
+    yeast = toml.load(yeastFile)['chef-registration']
 
   # Sanity check
   if not runlist:
     # Use runlist from sourdough starter
-    if 'default_runlist'in sourdough_configuration.keys():
+    if 'default_runlist'in yeast.keys():
       logger.debug("Using runlist from sourdough starter")
-      runlist = sourdough_configuration['default_runlist']
+      runlist = yeast['default_runlist']
     else:
       raise RuntimeError, "Could not determine the runlist"
   else:
     logger.info("Using runlist: %s", runlist)
 
   nodeName = generateNodeName()
-  firstboot_runlist =
 
   # Configure Chef
   clientConfiguration = generateClientConfiguration(nodeName=nodeName,
-    validationClientName=sourdough_configuration['validation_user_name'],
-    chefOrganization=sourdough_configuration['organization'])
+    validationClientName=yeast['validation_user_name'],
+    chefOrganization=yeast['organization'])
 
   fb_json_path = '/etc/chef/first-boot.json'
   client_rb_path = '/etc/chef/client.rb'
 
+  if not os.path.exists('/etc/chef'):
+    logger.info('Creating /etc/chef')
+    os.makedirs('/etc/chef')
+
+  if os.path.exists('/etc/chef/client.pem'):
+    logger.warning('Found stale /etc/chef/client.pem')
+    os.remove('/etc/chef/client.pem')
+
+  logger.debug("Writing %s", client_rb_path)
   with open(client_rb_path, 'w') as client_rb:
     client_rb.write(clientConfiguration)
 
+  logger.debug("Writing %s", fb_json_path)
   with open(fb_json_path, 'w') as firstboot_json:
     firstboot_json.write('{"run_list":["nucleus"]}')
 
-  borg_command = "chef-client --json-attributes %s --validation_key %s" % (fb_json_path, sourdough_configuration['validation_key'])
+  # Resistance is futile.
+  logger.info('Assimilating node %s...', nodeName)
+  logger.debug("  chef-client: %s", system_call('which chef-client'))
+  borg_command = ['chef-client', '--json-attributes', fb_json_path, '--validation_key', yeast['validation_key']]
   logger.debug("borg command: %s", borg_command)
+
   check_call(borg_command)
 
 
