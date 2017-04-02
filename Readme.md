@@ -1,6 +1,6 @@
-# bigriver.sourdough
+# sourdough
 
-bigriver.sourdough is a tool to install chef-client during instance boot.
+sourdough is a tool to install chef-client during instance boot.
 
 # FAQs
 
