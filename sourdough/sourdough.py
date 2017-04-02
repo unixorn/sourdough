@@ -53,6 +53,8 @@ def system_call(command):
   :param str command: Command to run
   :rtype: str
   """
+  assert isinstance(command, basestring), ("command must be a string but is %r" % name)
+
   p = subprocess.Popen([command], stdout=subprocess.PIPE, shell=True)
   return p.stdout.read()
 
@@ -61,6 +63,8 @@ def getCustomLogger(name):
   """Set up logging
   :param str name: What log level to set
   """
+  assert isinstance(name, basestring), ("name must be a string but is %r" % name)
+
   valid_log_levels = ['CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'WARNING']
 
   logLevel = readKnob('logLevel')
@@ -89,6 +93,7 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
   """
   assert isinstance(knobDirectory, basestring), ("knobDirectory must be a string but is %r" % knobDirectory)
   assert isinstance(knobName, basestring), ("knobName must be a string but is %r" % knobName)
+
   knobpath = "%s/%s" % (knobDirectory, knobName)
   if not os.path.isfile(knobpath):
     return None
@@ -108,6 +113,8 @@ def readKnobOrTag(name, connection=None):
   :param boto.ec2.connection connection: A boto connection to ec2
   :rtype: str
   """
+
+  assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
   # First, look for a knob file. If that exists, we don't care what the
   # tags say.  This way we work in vagrant VMs or on bare metal.
@@ -243,6 +250,9 @@ def generateClientConfiguration(nodeName=None,
   :param str chefOrganization: What organization name to use with Hosted Chef
   :rtype: str
   """
+  assert isinstance(nodeName, basestring), ("nodeName must be a string but is %r" % nodeName)
+  assert isinstance(validationClientName, basestring), ("validationClientName must be a string but is %r" % validationClientName)
+  assert isinstance(chefOrganization, basestring), ("chefOrganization must be a string but is %r" % chefOrganization)
 
   # We want to share our logger object across the module
   logger = this.logger
@@ -257,7 +267,7 @@ log_location     STDOUT
 chef_server_url  "https://api.chef.io/organizations/%(chefOrganization)s"
 validation_client_name "%(validationClientName)s"
 node_name "%(nodeName)s"
-  """ % { 'chefOrganization': chefOrganization,
+""" % { 'chefOrganization': chefOrganization,
           'validationClientName': validationClientName,
           'nodeName': nodeName }
 
@@ -353,15 +363,15 @@ def runner(connection=None):
   :param boto.ec2.connection connection: A boto connection to ec2
   """
 
+  # We want to share our logger object across all our functions
+  this.logger = getCustomLogger(name='sourdough-runner')
+  logger = this.logger
+
   if not amRoot():
     raise RuntimeError, "This must be run as root"
 
   if not isCheffed():
     raise RuntimeError, "Chef has not been installed"
-
-  # We want to share our logger object across all our functions
-  this.logger = getCustomLogger(name='sourdough-runner')
-  logger = this.logger
 
   # Assume AWS credentials are in the environment or the instance is using an IAM role
   if not connection:
