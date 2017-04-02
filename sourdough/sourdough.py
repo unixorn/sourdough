@@ -197,7 +197,7 @@ def inEC2():
   return 'amazon' in dmidata
 
 
-def generateNodeName(connection=None):
+def generateNodeName():
   """Determine what the machine's Chef node name should be.
 
   If a node prefix has been set (either in TAGS or /etc/knobs/Node), we
@@ -305,10 +305,10 @@ def infect(connection=None):
   region = haze.ec2.myRegion()
 
   # Determine parameters for initial Chef run
-  runlist = getRunlist(connection=connection)
+  runlist = getRunlist()
 
   try:
-    environment = getEnvironment(connection=connection)
+    environment = getEnvironment()
   except RuntimeError:
     environment = None
 
@@ -383,9 +383,9 @@ def runner(connection=None):
     connection = boto.ec2.connect_to_region(haze.ec2.myRegion())
 
   region = haze.ec2.myRegion()
-  runlist = getRunlist(connection=connection)
+  runlist = getRunlist()
   try:
-    environment = getEnvironment(connection=connection)
+    environment = getEnvironment()
   except RuntimeError:
     environment = None
 
