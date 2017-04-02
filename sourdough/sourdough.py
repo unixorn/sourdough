@@ -201,7 +201,7 @@ def generateNodeName(connection=None):
   """Determine what the machine's Chef node name should be.
 
   If a node prefix has been set (either in TAGS or /etc/knobs/Node), we
-  want AWS_REGION-NODE_PREFIX-INSTANCE_ID
+  want AWS_REGION-NODEPREFIX-INSTANCE_ID
 
   :param boto.ec2.connection connection: A boto connection to ec2
   :rtype: str
@@ -211,19 +211,19 @@ def generateNodeName(connection=None):
   if inEC2():
     logger.info('Running in EC2')
     region = haze.ec2.myRegion()
-    node_name = "%s" % region
+    nodeName = "%s" % region
 
-    node_prefix = getNodePrefix()
-    if node_prefix:
-      node_name = "%s-%s" % (node_name, node_prefix)
+    nodePrefix = getNodePrefix()
+    if nodePrefix:
+      nodeName = "%s-%s" % (nodeName, nodePrefix)
       instanceID = haze.ec2.myInstanceID()
-      node_name = "%s-%s" % (node_name, instanceID)
+      nodeName = "%s-%s" % (nodeName, instanceID)
     else:
-      node_name = "%s-%s" % (node_name, loadHostname())
+      nodeName = "%s-%s" % (nodeName, loadHostname())
   else:
     logger.info('Not in EC2, using hostname')
-    node_name = loadHostname()
-  return node_name
+    nodeName = loadHostname()
+  return nodeName
 
 
 # Chef helper functions
@@ -235,11 +235,11 @@ def isCheffed():
   """
   logger = this.logger
   logger.info('Checking for existing Chef installation')
-  chef_files = ["%s/client.rb" % CHEF_D, "%s/client.pem" % CHEF_D]
-  for chef_file in chef_files:
-    logger.debug("  Checking for %s", chef_file)
-    if not os.path.isfile(chef_file):
-      logger.debug("  %s missing, Chef not installed", chef_file)
+  chefFiles = ["%s/client.rb" % CHEF_D, "%s/client.pem" % CHEF_D]
+  for aChefFile in chefFiles:
+    logger.debug("  Checking for %s", aChefFile)
+    if not os.path.isfile(aChefFile):
+      logger.debug("  %s missing, Chef not installed", aChefFile)
       return False
   logger.critical("Chef client files found")
   return True
@@ -334,8 +334,8 @@ def infect(connection=None):
     validationClientName=yeast['validation_user_name'],
     chefOrganization=yeast['organization'])
 
-  fb_json_path = '/etc/chef/first-boot.json'
-  client_rb_path = '/etc/chef/client.rb'
+  fbJsonPath = '/etc/chef/first-boot.json'
+  clientRbPath = '/etc/chef/client.rb'
 
   if not os.path.exists('/etc/chef'):
     logger.info('Creating /etc/chef')
@@ -345,21 +345,21 @@ def infect(connection=None):
     logger.warning('Found stale /etc/chef/client.pem')
     os.remove('/etc/chef/client.pem')
 
-  logger.debug("Writing %s", client_rb_path)
-  with open(client_rb_path, 'w') as client_rb:
-    client_rb.write(clientConfiguration)
+  logger.debug("Writing %s", clientRbPath)
+  with open(clientRbPath, 'w') as clientRbFile:
+    clientRbFile.write(clientConfiguration)
 
-  logger.debug("Writing %s", fb_json_path)
-  with open(fb_json_path, 'w') as firstboot_json:
-    firstboot_json.write('{"run_list":["nucleus"]}')
+  logger.debug("Writing %s", fbJsonPath)
+  with open(fbJsonPath, 'w') as firstbootJsonFile:
+    firstbootJsonFile.write('{"run_list":["nucleus"]}')
 
   # Resistance is futile.
   logger.info('Assimilating node %s...', nodeName)
   logger.debug("  chef-client: %s", systemCall('which chef-client').strip())
-  borg_command = ['chef-client', '--json-attributes', fb_json_path, '--validation_key', yeast['validation_key']]
-  logger.debug("borg command: %s", borg_command)
+  borgCommand = ['chef-client', '--json-attributes', fbJsonPath, '--validation_key', yeast['validation_key']]
+  logger.debug("borg command: %s", borgCommand)
 
-  check_call(borg_command)
+  check_call(borgCommand)
 
 
 def runner(connection=None):
@@ -419,11 +419,11 @@ def deregisterFromChef():
   logger.debug("  Deleting client %s", clientID)
   systemCall("knife client delete -y -c /etc/chef/client.rb %s" % (clientID))
 
-  for chef_file in ['client.pem', 'client.rb']:
-    if os.path.isfile("/etc/chef/%s" % chef_file):
-      this.logger.info("  Scrubbing %s", chef_file)
-      os.remove("/etc/chef/%s" % chef_file)
+  for chefFile in ['client.pem', 'client.rb']:
+    if os.path.isfile("/etc/chef/%s" % chefFile):
+      this.logger.info("  Scrubbing %s", chefFile)
+      os.remove("/etc/chef/%s" % chefFile)
 
 
 if __name__ == '__main__':
-  run()
+  print "Don't run this on its own."
