@@ -138,7 +138,7 @@ def loadHostname(connection=None):
   hostname = readKnobOrTag(name='Hostname')
   if not hostname:
     this.logger.debug('No hostname tag or knob, falling back to hostname command output')
-    hostname = system_call('hostname')
+    hostname = system_call('hostname').strip()
   this.logger.debug("hostname: %s", hostname)
   return hostname
 
@@ -340,7 +340,7 @@ def infect(connection=None):
 
   # Resistance is futile.
   logger.info('Assimilating node %s...', nodeName)
-  logger.debug("  chef-client: %s", system_call('which chef-client'))
+  logger.debug("  chef-client: %s", system_call('which chef-client').strip())
   borg_command = ['chef-client', '--json-attributes', fb_json_path, '--validation_key', yeast['validation_key']]
   logger.debug("borg command: %s", borg_command)
 
@@ -355,6 +355,9 @@ def runner(connection=None):
 
   if not amRoot():
     raise RuntimeError, "This must be run as root"
+
+  if not isCheffed():
+    raise RuntimeError, "Chef has not been installed"
 
   # We want to share our logger object across all our functions
   this.logger = getCustomLogger(name='sourdough-runner')
@@ -375,7 +378,7 @@ def runner(connection=None):
   if not runlist:
     raise RuntimeError, "Could not determine the runlist"
 
-  chefCommand = ['chef-client', '--runlist', runlist]
+  chefCommand = ['chef-client', '--run-lock-timeout', '0', '--runlist', runlist]
   if environment:
     chefCommand = chefCommand + ['--environment', environment]
 
@@ -386,9 +389,25 @@ def runner(connection=None):
 
 def deregisterFromChef():
   """Deregister a node from Chef"""
+  if not amRoot():
+    raise RuntimeError, "This must be run as root"
+
+  logger = getCustomLogger(name='sourdough-deregister')
+  this.logger = logger
+
   clientID = system_call("awk '/node_name/ {print $2}' < /etc/chef/client.rb").replace('"', '').strip()
+  logger.info("Deregistering %s from chef", clientID)
+
+  logger.debug("  Deleting node %s", clientID)
   system_call("knife node delete -y -c /etc/chef/client.rb %s" % (clientID))
+
+  logger.debug("  Deleting client %s", clientID)
   system_call("knife client delete -y -c /etc/chef/client.rb %s" % (clientID))
+
+  for chef_file in ['client.pem', 'client.rb']:
+    if os.path.isfile("/etc/chef/%s" % chef_file):
+      this.logger.info("  Scrubbing %s", chef_file)
+      os.remove("/etc/chef/%s" % chef_file)
 
 
 if __name__ == '__main__':
