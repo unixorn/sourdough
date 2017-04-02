@@ -14,10 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
+"""
+Sourdough is a utility for EC2 instances running Chef.
+
+It provides methods to make them register on boot, run (getting their
+runlist and environment from EC2 tags or files in /etc/knobs), and deregister.
+"""
+
 import boto.utils
 import haze.ec2
-import json
 import logging
 import os
 import subprocess
@@ -44,7 +49,7 @@ def amRoot():
     return False
 
 
-def system_call(command):
+def systemCall(command):
   """Run a command and return stdout.
 
   Would be better to use subprocess.check_output, but this works on 2.6,
@@ -53,7 +58,7 @@ def system_call(command):
   :param str command: Command to run
   :rtype: str
   """
-  assert isinstance(command, basestring), ("command must be a string but is %r" % name)
+  assert isinstance(command, basestring), ("command must be a string but is %r" % command)
 
   p = subprocess.Popen([command], stdout=subprocess.PIPE, shell=True)
   return p.stdout.read()
@@ -65,20 +70,20 @@ def getCustomLogger(name):
   """
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
-  valid_log_levels = ['CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'WARNING']
+  validLogLevels = ['CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'WARNING']
 
   logLevel = readKnob('logLevel')
   if not logLevel:
     logLevel = 'INFO'
 
   # If they don't specify a valid log level, err on the side of verbosity
-  if logLevel.upper() not in valid_log_levels:
+  if logLevel.upper() not in validLogLevels:
     logLevel = 'DEBUG'
 
-  numeric_level = getattr(logging, logLevel.upper(), None)
-  if not isinstance(numeric_level, int):
-    raise ValueError('Invalid log level: %s' % loglevel)
-  logging.basicConfig(level=numeric_level, format='%(asctime)s %(levelname)-9s:%(module)s:%(funcName)s: %(message)s')
+  numericLevel = getattr(logging, logLevel.upper(), None)
+  if not isinstance(numericLevel, int):
+    raise ValueError('Invalid log level: %s' % logLevel)
+  logging.basicConfig(level=numericLevel, format='%(asctime)s %(levelname)-9s:%(module)s:%(funcName)s: %(message)s')
   logger = logging.getLogger(name)
   return logger
 
@@ -98,9 +103,9 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
   if not os.path.isfile(knobpath):
     return None
   if os.access(knobpath, os.R_OK):
-    with open (knobpath, "r") as knobfile:
+    with open(knobpath, "r") as knobfile:
       # data = knobfile.readlines()
-      data="".join(line.rstrip() for line in knobfile)
+      data = ''.join(line.rstrip() for line in knobfile)
     return data
   else:
     return None
@@ -137,7 +142,7 @@ def readKnobOrTag(name, connection=None):
       return None
 
 
-def loadHostname(connection=None):
+def loadHostname():
   """Determine what an instance's hostname should be
 
   :rtype: str
@@ -145,12 +150,12 @@ def loadHostname(connection=None):
   hostname = readKnobOrTag(name='Hostname')
   if not hostname:
     this.logger.debug('No hostname tag or knob, falling back to hostname command output')
-    hostname = system_call('hostname').strip()
+    hostname = systemCall('hostname').strip()
   this.logger.debug("hostname: %s", hostname)
   return hostname
 
 
-def getEnvironment(connection=None):
+def getEnvironment():
   """Determine an instance's Environment
 
   :rtype: str
@@ -160,7 +165,7 @@ def getEnvironment(connection=None):
   return environment
 
 
-def getNodePrefix(connection=None):
+def getNodePrefix():
   """Determine an instance's node prefix. Will be used in ASGs.
 
   :rtype: str
@@ -170,7 +175,7 @@ def getNodePrefix(connection=None):
   return node
 
 
-def getRunlist(connection=None):
+def getRunlist():
   """Determine an instance's runlist
 
   :rtype: str
@@ -187,7 +192,7 @@ def inEC2():
 
   :rtype: bool
   """
-  dmidata = system_call('dmidecode -s bios-version').strip().lower()
+  dmidata = systemCall('dmidecode -s bios-version').strip().lower()
   this.logger.debug("dmidata: %s", dmidata)
   return 'amazon' in dmidata
 
@@ -267,9 +272,9 @@ log_location     STDOUT
 chef_server_url  "https://api.chef.io/organizations/%(chefOrganization)s"
 validation_client_name "%(validationClientName)s"
 node_name "%(nodeName)s"
-""" % { 'chefOrganization': chefOrganization,
-          'validationClientName': validationClientName,
-          'nodeName': nodeName }
+""" % {'chefOrganization': chefOrganization,
+       'validationClientName': validationClientName,
+       'nodeName': nodeName}
 
   logger.debug('Client Configuration')
   logger.debug(clientConfiguration)
@@ -308,7 +313,7 @@ def infect(connection=None):
     environment = None
 
   # Load sourdough configuration values
-  with open('/etc/sourdough/sourdough.toml','r') as yeastFile:
+  with open('/etc/sourdough/sourdough.toml', 'r') as yeastFile:
     yeast = toml.load(yeastFile)['chef-registration']
 
   # Sanity check
@@ -350,7 +355,7 @@ def infect(connection=None):
 
   # Resistance is futile.
   logger.info('Assimilating node %s...', nodeName)
-  logger.debug("  chef-client: %s", system_call('which chef-client').strip())
+  logger.debug("  chef-client: %s", systemCall('which chef-client').strip())
   borg_command = ['chef-client', '--json-attributes', fb_json_path, '--validation_key', yeast['validation_key']]
   logger.debug("borg command: %s", borg_command)
 
@@ -405,14 +410,14 @@ def deregisterFromChef():
   logger = getCustomLogger(name='sourdough-deregister')
   this.logger = logger
 
-  clientID = system_call("awk '/node_name/ {print $2}' < /etc/chef/client.rb").replace('"', '').strip()
+  clientID = systemCall("awk '/node_name/ {print $2}' < /etc/chef/client.rb").replace('"', '').strip()
   logger.info("Deregistering %s from chef", clientID)
 
   logger.debug("  Deleting node %s", clientID)
-  system_call("knife node delete -y -c /etc/chef/client.rb %s" % (clientID))
+  systemCall("knife node delete -y -c /etc/chef/client.rb %s" % (clientID))
 
   logger.debug("  Deleting client %s", clientID)
-  system_call("knife client delete -y -c /etc/chef/client.rb %s" % (clientID))
+  systemCall("knife client delete -y -c /etc/chef/client.rb %s" % (clientID))
 
   for chef_file in ['client.pem', 'client.rb']:
     if os.path.isfile("/etc/chef/%s" % chef_file):
