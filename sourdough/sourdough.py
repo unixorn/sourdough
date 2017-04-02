@@ -103,7 +103,7 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
   if not os.path.isfile(knobpath):
     return None
   if os.access(knobpath, os.R_OK):
-    with open(knobpath, "r") as knobfile:
+    with open(knobpath, 'r') as knobfile:
       # data = knobfile.readlines()
       data = ''.join(line.rstrip() for line in knobfile)
     return data
@@ -320,10 +320,10 @@ def infect(connection=None):
   if not runlist:
     # Use runlist from sourdough starter
     if 'default_runlist'in yeast.keys():
-      logger.debug("Using runlist from sourdough starter")
+      logger.debug('Using runlist from sourdough starter')
       runlist = yeast['default_runlist']
     else:
-      raise RuntimeError, "Could not determine the runlist"
+      raise RuntimeError, 'Could not determine the runlist'
   else:
     logger.info("Using runlist: %s", runlist)
 
@@ -373,10 +373,10 @@ def runner(connection=None):
   logger = this.logger
 
   if not amRoot():
-    raise RuntimeError, "This must be run as root"
+    raise RuntimeError, 'This must be run as root'
 
   if not isCheffed():
-    raise RuntimeError, "Chef has not been installed"
+    raise RuntimeError, 'Chef has not been installed'
 
   # Assume AWS credentials are in the environment or the instance is using an IAM role
   if not connection:
@@ -391,7 +391,7 @@ def runner(connection=None):
 
   # Sanity check
   if not runlist:
-    raise RuntimeError, "Could not determine the runlist"
+    raise RuntimeError, 'Could not determine the runlist'
 
   chefCommand = ['chef-client', '--run-lock-timeout', '0', '--runlist', runlist]
   if environment:
@@ -405,7 +405,7 @@ def runner(connection=None):
 def deregisterFromChef():
   """Deregister a node from Chef"""
   if not amRoot():
-    raise RuntimeError, "This must be run as root"
+    raise RuntimeError, 'This must be run as root'
 
   logger = getCustomLogger(name='sourdough-deregister')
   this.logger = logger
