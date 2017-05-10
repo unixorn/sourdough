@@ -15,7 +15,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 """
 setup.py for sourdough
 """
@@ -25,7 +25,7 @@ import shutil
 import subprocess
 from setuptools import setup, find_packages, Command
 
-def systemCall(command):
+def system_call(command):
   """Run a command and return stdout.
 
   Would be better to use subprocess.check_output, but this works on 2.6,
@@ -35,7 +35,7 @@ def systemCall(command):
 
 
 name = "sourdough"
-version = "0.2.%s" % (systemCall('git rev-list HEAD --count').strip())
+version = "0.3.%s" % (system_call('git rev-list HEAD --count').strip())
 
 
 class CleanCommand(Command):
@@ -66,7 +66,7 @@ setup(
   name=name,
   author="Joe Block",
   author_email="jpb@unixorn.net",
-  description="sourdough is a tool to make an instance automatically register itself with Chef during boot",
+  description="sourdough is a tool to make an instance automatically register with Chef during boot",
   url="https://github.com/unixorn/bigriver.sourdough",
   packages=find_packages(),
   install_requires=[

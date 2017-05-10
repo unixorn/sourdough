@@ -1,9 +1,9 @@
 help:
-	@echo '`make clean` to clean up'
-	@echo '`make develop` to do a local developer install'
 	@echo '`make docs` to make the documention'
-	@echo '`make upload` to upload'
+	@echo '`make clean` to clean up'
 	@echo '`make wheel` to make a wheel file'
+	@echo '`make upload` to upload'
+	@echo '`make develop` to do a local developer install'
 
 clean:
 	python setup.py clean
