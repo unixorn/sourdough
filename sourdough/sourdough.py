@@ -262,6 +262,7 @@ def generateClientConfiguration(nodeName=None,
 
   logger.info('Generating Chef client configuration')
   logger.debug("  chefOrganization: %s", chefOrganization)
+  logger.debug("  chefServerUrl: %s", chefServerUrl)
   logger.debug("  nodeName: %s", nodeName)
   logger.debug("  validationClientName: %s", validationClientName)
 
@@ -335,6 +336,7 @@ def infect(connection=None):
   if 'chef_server_url' in yeast.keys():
     chefServerUrl = yeast['chef_server_url']
   else:
+    logger.debug('No chef_server_url in sourdough.toml, assuming you want Hosted Chef')
     chefServerUrl = 'https://api.chef.io/organizations'
   logger.debug("Setting Chef Server url to %s", chefServerUrl)
 
