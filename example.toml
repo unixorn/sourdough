@@ -1,0 +1,8 @@
+[chef-registration]
+
+organization = "OmniConsumerProducts"
+validation_user_name = "OmniConsumerProducts-validator"
+validation_key = "/etc/OmniConsumerProducts/credentials/chef/OmniConsumerProducts-validator.private.key"
+validation_pubkey = "/etc/OmniConsumerProducts/credentials/chef/OmniConsumerProducts-validator.public.key"
+default_runlist = "ocp_base"
+chef_server = "https://api.chef.io/organizations"

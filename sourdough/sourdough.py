@@ -14,15 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Sourdough is a utility for EC2 instances running Chef.
-
-It provides methods to make them register on boot, run (getting their
-runlist and environment from EC2 tags or files in /etc/knobs), and deregister.
-"""
-
+import argparse
 import boto.utils
 import haze.ec2
+import json
 import logging
 import os
 import subprocess
@@ -82,7 +77,8 @@ def getCustomLogger(name):
 
   numericLevel = getattr(logging, logLevel.upper(), None)
   if not isinstance(numericLevel, int):
-    raise ValueError('Invalid log level: %s' % logLevel)
+    raise ValueError("Invalid log level: %s" % logLevel)
+
   logging.basicConfig(level=numericLevel, format='%(asctime)s %(levelname)-9s:%(module)s:%(funcName)s: %(message)s')
   logger = logging.getLogger(name)
   return logger
@@ -104,7 +100,6 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
     return None
   if os.access(knobpath, os.R_OK):
     with open(knobpath, 'r') as knobfile:
-      # data = knobfile.readlines()
       data = ''.join(line.rstrip() for line in knobfile)
     return data
   else:
@@ -201,7 +196,7 @@ def generateNodeName():
   """Determine what the machine's Chef node name should be.
 
   If a node prefix has been set (either in TAGS or /etc/knobs/Node), we
-  want AWS_REGION-NODEPREFIX-INSTANCE_ID
+  want AWS_REGION-NODE_PREFIX-INSTANCE_ID
 
   :param boto.ec2.connection connection: A boto connection to ec2
   :rtype: str
@@ -241,13 +236,15 @@ def isCheffed():
     if not os.path.isfile(aChefFile):
       logger.debug("  %s missing, Chef not installed", aChefFile)
       return False
-  logger.critical("Chef client files found")
+  logger.critical('Chef client files found')
   return True
 
 
 def generateClientConfiguration(nodeName=None,
                                 validationClientName=None,
-                                chefOrganization=None):
+                                chefOrganization=None,
+                                chefLogLocation=None,
+                                chefServerUrl=None):
   """Generate client.rb contents
 
   :param str nodeName: node's chef name
@@ -255,24 +252,28 @@ def generateClientConfiguration(nodeName=None,
   :param str chefOrganization: What organization name to use with Hosted Chef
   :rtype: str
   """
+  assert isinstance(chefOrganization, basestring), ("chefOrganization must be a string but is %r" % chefOrganization)
+  assert isinstance(chefServerUrl, basestring), ("chefServerUrl must be a string but is %r" % chefServerUrl)
   assert isinstance(nodeName, basestring), ("nodeName must be a string but is %r" % nodeName)
   assert isinstance(validationClientName, basestring), ("validationClientName must be a string but is %r" % validationClientName)
-  assert isinstance(chefOrganization, basestring), ("chefOrganization must be a string but is %r" % chefOrganization)
 
   # We want to share our logger object across the module
   logger = this.logger
 
   logger.info('Generating Chef client configuration')
   logger.debug("  chefOrganization: %s", chefOrganization)
+  logger.debug("  chefServerUrl: %s", chefServerUrl)
   logger.debug("  nodeName: %s", nodeName)
   logger.debug("  validationClientName: %s", validationClientName)
 
   clientConfiguration = """
-log_location     STDOUT
-chef_server_url  "https://api.chef.io/organizations/%(chefOrganization)s"
-validation_client_name "%(validationClientName)s"
 node_name "%(nodeName)s"
-""" % {'chefOrganization': chefOrganization,
+log_location     %(chefLogLocation)s
+chef_server_url  "%(chefServerUrl)s/%(chefOrganization)s"
+validation_client_name "%(validationClientName)s"
+""" % {'chefLogLocation': chefLogLocation,
+       'chefOrganization': chefOrganization,
+       'chefServerUrl': chefServerUrl,
        'validationClientName': validationClientName,
        'nodeName': nodeName}
 
@@ -287,14 +288,14 @@ def infect(connection=None):
   :param boto.ec2.connection connection: A boto connection to ec2
   """
   if not amRoot():
-    raise RuntimeError, "This must be run as root"
+    raise RuntimeError, 'This must be run as root'
 
   # We want to share our logger object across the module
   this.logger = getCustomLogger(name='sourdough-bootstrap')
   logger = this.logger
 
   if isCheffed():
-    raise RuntimeError, "This machine is already Cheffed"
+    raise RuntimeError, 'This machine is already Cheffed'
 
   logger.info('Assimilating instance into Chef')
 
@@ -310,6 +311,8 @@ def infect(connection=None):
   try:
     environment = getEnvironment()
   except RuntimeError:
+    # Setting environment to None will cause the instance to use the default
+    # environment on the Chef server, which is fine.
     environment = None
 
   # Load sourdough configuration values
@@ -323,18 +326,35 @@ def infect(connection=None):
       logger.debug('Using runlist from sourdough starter')
       runlist = yeast['default_runlist']
     else:
-      raise RuntimeError, 'Could not determine the runlist'
+      raise RuntimeError, 'Could not determine a runlist during Chef assimilation'
   else:
     logger.info("Using runlist: %s", runlist)
 
   nodeName = generateNodeName()
 
+  # If there is no Chef Server URL specified in sourdough.toml, default to Hosted Chef
+  if 'chef_server_url' in yeast.keys():
+    chefServerUrl = yeast['chef_server_url']
+  else:
+    logger.debug('No chef_server_url in sourdough.toml, assuming you want Hosted Chef')
+    chefServerUrl = 'https://api.chef.io/organizations'
+  logger.debug("Setting Chef Server url to %s", chefServerUrl)
+
+  # If there is no Chef log location specified in sourdough.toml, default to STDOUT
+  if 'chef_log_location' in yeast.keys():
+    chefLogLocation = yeast['chef_log_location']
+  else:
+    chefLogLocation = 'STDOUT'
+  logger.debug("Setting Chef Server url to %s", chefServerUrl)
+
   # Configure Chef
   clientConfiguration = generateClientConfiguration(nodeName=nodeName,
-    validationClientName=yeast['validation_user_name'],
-    chefOrganization=yeast['organization'])
+                                                    chefLogLocation=chefLogLocation,
+                                                    chefServerUrl=chefServerUrl,
+                                                    validationClientName=yeast['validation_user_name'],
+                                                    chefOrganization=yeast['organization'])
 
-  fbJsonPath = '/etc/chef/first-boot.json'
+  firstbootJsonPath = '/etc/chef/first-boot.json'
   clientRbPath = '/etc/chef/client.rb'
 
   if not os.path.exists('/etc/chef'):
@@ -349,14 +369,14 @@ def infect(connection=None):
   with open(clientRbPath, 'w') as clientRbFile:
     clientRbFile.write(clientConfiguration)
 
-  logger.debug("Writing %s", fbJsonPath)
-  with open(fbJsonPath, 'w') as firstbootJsonFile:
-    firstbootJsonFile.write('{"run_list":["nucleus"]}')
+  logger.debug("Writing %s", firstbootJsonPath)
+  with open(firstbootJsonPath, 'w') as firstbootJson:
+    firstbootJson.write('{"run_list":["nucleus"]}')
 
   # Resistance is futile.
   logger.info('Assimilating node %s...', nodeName)
   logger.debug("  chef-client: %s", systemCall('which chef-client').strip())
-  borgCommand = ['chef-client', '--json-attributes', fbJsonPath, '--validation_key', yeast['validation_key']]
+  borgCommand = ['chef-client', '--json-attributes', firstbootJsonPath, '--validation_key', yeast['validation_key']]
   logger.debug("borg command: %s", borgCommand)
 
   check_call(borgCommand)
@@ -426,4 +446,5 @@ def deregisterFromChef():
 
 
 if __name__ == '__main__':
-  print "Don't run this on its own."
+  print 'This is a library, not a stand alone script'
+  sys.exit(1)
