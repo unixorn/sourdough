@@ -1,5 +1,9 @@
 # Sourdough
 
+# 0.4
+
+Cope with rename on github from bigriver.sourdough to sourdough.
+
 # 0.3
 
 Allow specifying a chef server url instead of defaulting to Hosted Chef
