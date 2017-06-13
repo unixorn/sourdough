@@ -35,7 +35,7 @@ def system_call(command):
 
 
 name = "sourdough"
-version = "0.3.%s" % (system_call('git rev-list HEAD --count').strip())
+version = "0.4.%s" % (system_call('git rev-list HEAD --count').strip())
 
 
 class CleanCommand(Command):
@@ -67,7 +67,7 @@ setup(
   author="Joe Block",
   author_email="jpb@unixorn.net",
   description="sourdough is a tool to make an instance automatically register with Chef during boot",
-  url="https://github.com/unixorn/bigriver.sourdough",
+  url="https://github.com/unixorn/sourdough",
   packages=find_packages(),
   install_requires=[
     "boto>=2.38.0",
@@ -79,7 +79,7 @@ setup(
     "clean": CleanCommand,
   },
   version=version,
-  download_url="https://github.com/unixorn/bigriver.sourdough/tarball/%s" % version,
+  download_url="https://github.com/unixorn/sourdough/tarball/%s" % version,
   classifiers=[
     "Development Status :: 3 - Alpha",
     "Operating System :: POSIX",
