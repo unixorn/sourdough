@@ -22,6 +22,7 @@ import logging
 import os
 import subprocess
 import sys
+import urllib2
 
 import pytoml as toml
 from subprocess import check_call
@@ -67,7 +68,7 @@ def getCustomLogger(name):
 
   validLogLevels = ['CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'WARNING']
 
-  logLevel = readKnob('logLevel')
+  logLevel = readKnobOrTag('logLevel')
   if not logLevel:
     logLevel = 'INFO'
 
@@ -106,6 +107,19 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
     return None
 
 
+def getAWSAccountID():
+  '''
+  Print an instance's AWS account number or 0 when not in EC2
+  '''
+  link = "http://169.254.169.254/latest/dynamic/instance-identity/document"
+  try:
+    conn = urllib2.urlopen(url=link, timeout=5)
+  except urllib2.URLError:
+    return '0'
+  jsonData = json.loads(conn.read())
+  return jsonData['accountId']
+
+
 def readKnobOrTag(name, connection=None):
   """Read a knob file or EC2 instance tag
 
@@ -129,8 +143,10 @@ def readKnobOrTag(name, connection=None):
     # We assume AWS credentials are in the environment or the instance is
     # using an IAM role.
     if not connection:
-      connection = boto.ec2.connect_to_region(haze.ec2.myRegion())
+      print 'Connecting to region'
+      connection = getEC2connection()
     try:
+      print 'Reading instance tag %s for %s' % (myIID, name)
       data = haze.ec2.readInstanceTag(instanceID=myIID, tagName=name, connection=connection)
       return data
     except RuntimeError:
@@ -181,15 +197,16 @@ def getRunlist():
 
 
 def inEC2():
-  """Detect if we're running in EC2.
+  '''Detect if we're running in EC2.
 
-  This check only works if we're running as root
+  If the getAWSAccountID() returns a non-zero account ID, we're in EC2.
 
   :rtype: bool
-  """
-  dmidata = systemCall('dmidecode -s bios-version').strip().lower()
-  this.logger.debug("dmidata: %s", dmidata)
-  return 'amazon' in dmidata
+  '''
+  if getAWSAccountID() == '0':
+    return False
+  else:
+    return True
 
 
 def generateNodeName():
@@ -219,6 +236,17 @@ def generateNodeName():
     logger.info('Not in EC2, using hostname')
     nodeName = loadHostname()
   return nodeName
+
+
+def getEC2connection():
+  '''
+  Get a boto EC2 Connection using the keypair from the OS environment.
+  '''
+  aws_access_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
+  aws_secret_access_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+  return boto.ec2.connect_to_region(haze.ec2.myRegion(),
+                                    aws_access_key_id=aws_access_key_id,
+                                    aws_secret_access_key=aws_secret_access_key)
 
 
 # Chef helper functions
@@ -301,9 +329,10 @@ def infect(connection=None):
 
   # Assume AWS credentials are in the environment or the instance is using an IAM role
   if not connection:
-    connection = boto.ec2.connect_to_region(haze.ec2.myRegion())
+    connection = getEC2connection()
 
   region = haze.ec2.myRegion()
+  logger.debug('region: %s', region)
 
   # Determine parameters for initial Chef run
   runlist = getRunlist()
@@ -400,7 +429,7 @@ def runner(connection=None):
 
   # Assume AWS credentials are in the environment or the instance is using an IAM role
   if not connection:
-    connection = boto.ec2.connect_to_region(haze.ec2.myRegion())
+    connection = getEC2connection()
 
   region = haze.ec2.myRegion()
   runlist = getRunlist()
