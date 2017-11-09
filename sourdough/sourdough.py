@@ -180,7 +180,7 @@ def getEnvironment():
   '''
   environment = readKnobOrTag(name='Environment')
   this.logger.debug("Environment: %s", environment)
-  return environment
+  return environment.lower()
 
 
 def getNodePrefix():
