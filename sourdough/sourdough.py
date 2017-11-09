@@ -14,18 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
-import boto.utils
-import haze.ec2
+'''
+Read configuration parameters from instance EC2 tags, then run
+chef-client.
+'''
+
 import json
 import logging
 import os
 import subprocess
+from subprocess import check_call
 import sys
 import urllib2
 
+import boto.utils
+import haze.ec2
 import pytoml as toml
-from subprocess import check_call
 
 # this is a pointer to the module object instance itself. We'll attach
 # a logger to it later.
@@ -461,7 +465,6 @@ def runner(connection=None):
     chefCommand = chefCommand + ['--environment', environment]
 
   logger.debug("chefCommand: %s", chefCommand)
-
   check_call(chefCommand)
 
 
