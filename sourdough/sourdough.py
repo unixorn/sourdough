@@ -14,18 +14,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
-import boto.utils
-import haze.ec2
+'''
+Read configuration parameters from instance EC2 tags, then run
+chef-client.
+'''
+
 import json
 import logging
 import os
 import subprocess
+from subprocess import check_call
 import sys
 import urllib2
 
+import boto.utils
+import haze.ec2
 import pytoml as toml
-from subprocess import check_call
 
 # this is a pointer to the module object instance itself. We'll attach
 # a logger to it later.
@@ -35,10 +39,11 @@ this = sys.modules[__name__]
 CHEF_D = '/etc/chef'
 
 def amRoot():
-  """Are we root?
+  '''
+  Are we root?
 
   :rtype: bool
-  """
+  '''
   if os.getuid() == 0:
     return True
   else:
@@ -46,14 +51,15 @@ def amRoot():
 
 
 def systemCall(command):
-  """Run a command and return stdout.
+  '''
+  Run a command and return stdout.
 
   Would be better to use subprocess.check_output, but this works on 2.6,
   which is still the system Python on CentOS 7.
 
   :param str command: Command to run
   :rtype: str
-  """
+  '''
   assert isinstance(command, basestring), ("command must be a string but is %r" % command)
 
   p = subprocess.Popen([command], stdout=subprocess.PIPE, shell=True)
@@ -61,9 +67,10 @@ def systemCall(command):
 
 
 def getCustomLogger(name):
-  """Set up logging
+  '''
+  Set up logging
   :param str name: What log level to set
-  """
+  '''
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
   validLogLevels = ['CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'WARNING']
@@ -88,11 +95,12 @@ def getCustomLogger(name):
 # Helpers for dealing with tag/knob data
 
 def readKnob(knobName, knobDirectory='/etc/knobs'):
-  """Read a knob file and return the contents
+  '''
+  Read a knob file and return the contents
 
   :param str name: Which tag/knob to look for
   :rtype: str
-  """
+  '''
   assert isinstance(knobDirectory, basestring), ("knobDirectory must be a string but is %r" % knobDirectory)
   assert isinstance(knobName, basestring), ("knobName must be a string but is %r" % knobName)
 
@@ -121,12 +129,13 @@ def getAWSAccountID():
 
 
 def readKnobOrTag(name, connection=None):
-  """Read a knob file or EC2 instance tag
+  '''
+  Read a knob file or EC2 instance tag
 
   :param str name: Which tag/knob to look for
   :param boto.ec2.connection connection: A boto connection to ec2
   :rtype: str
-  """
+  '''
 
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
@@ -154,10 +163,11 @@ def readKnobOrTag(name, connection=None):
 
 
 def loadHostname():
-  """Determine what an instance's hostname should be
+  '''
+  Determine what an instance's hostname should be
 
   :rtype: str
-  """
+  '''
   hostname = readKnobOrTag(name='Hostname')
   if not hostname:
     this.logger.debug('No hostname tag or knob, falling back to hostname command output')
@@ -167,30 +177,33 @@ def loadHostname():
 
 
 def getEnvironment():
-  """Determine an instance's Environment
+  '''
+  Determine an instance's Environment
 
   :rtype: str
-  """
+  '''
   environment = readKnobOrTag(name='Environment')
   this.logger.debug("Environment: %s", environment)
-  return environment
+  return environment.lower()
 
 
 def getNodePrefix():
-  """Determine an instance's node prefix. Will be used in ASGs.
+  '''
+  Determine an instance's node prefix. Will be used in ASGs.
 
   :rtype: str
-  """
+  '''
   node = readKnobOrTag(name='Node')
   this.logger.debug("Node: %s", node)
   return node
 
 
 def getRunlist():
-  """Determine an instance's runlist
+  '''
+  Determine an instance's runlist
 
   :rtype: str
-  """
+  '''
   runlist = readKnobOrTag(name='Runlist')
   this.logger.debug("Runlist: %s", runlist)
   return runlist
@@ -210,14 +223,15 @@ def inEC2():
 
 
 def generateNodeName():
-  """Determine what the machine's Chef node name should be.
+  '''
+  Determine what the machine's Chef node name should be.
 
   If a node prefix has been set (either in TAGS or /etc/knobs/Node), we
   want AWS_REGION-NODE_PREFIX-INSTANCE_ID
 
   :param boto.ec2.connection connection: A boto connection to ec2
   :rtype: str
-  """
+  '''
   logger = this.logger
   logger.info('Determining Chef node name')
   if inEC2():
@@ -252,10 +266,11 @@ def getEC2connection():
 # Chef helper functions
 
 def isCheffed():
-  """Detect if Chef has been installed on a system.
+  '''
+  Detect if Chef has been installed on a system.
 
   rtype: bool
-  """
+  '''
   logger = this.logger
   logger.info('Checking for existing Chef installation')
   chefFiles = ["%s/client.rb" % CHEF_D, "%s/client.pem" % CHEF_D]
@@ -273,13 +288,14 @@ def generateClientConfiguration(nodeName=None,
                                 chefOrganization=None,
                                 chefLogLocation=None,
                                 chefServerUrl=None):
-  """Generate client.rb contents
+  '''
+  Generate client.rb contents
 
   :param str nodeName: node's chef name
   :param str validationClientName: what name to use with the cert
   :param str chefOrganization: What organization name to use with Hosted Chef
   :rtype: str
-  """
+  '''
   assert isinstance(chefOrganization, basestring), ("chefOrganization must be a string but is %r" % chefOrganization)
   assert isinstance(chefServerUrl, basestring), ("chefServerUrl must be a string but is %r" % chefServerUrl)
   assert isinstance(nodeName, basestring), ("nodeName must be a string but is %r" % nodeName)
@@ -311,10 +327,11 @@ validation_client_name "%(validationClientName)s"
 
 
 def infect(connection=None):
-  """Installs chef-client on an instance
+  '''
+  Installs chef-client on an instance
 
   :param boto.ec2.connection connection: A boto connection to ec2
-  """
+  '''
   if not amRoot():
     raise RuntimeError, 'This must be run as root'
 
@@ -412,10 +429,11 @@ def infect(connection=None):
 
 
 def runner(connection=None):
-  """Run chef-client on an instance, reading Runlist and Enviroment from tags
+  '''
+  Run chef-client on an instance, reading Runlist and Enviroment from tags
 
   :param boto.ec2.connection connection: A boto connection to ec2
-  """
+  '''
 
   # We want to share our logger object across all our functions
   this.logger = getCustomLogger(name='sourdough-runner')
@@ -447,12 +465,13 @@ def runner(connection=None):
     chefCommand = chefCommand + ['--environment', environment]
 
   logger.debug("chefCommand: %s", chefCommand)
-
   check_call(chefCommand)
 
 
 def deregisterFromChef():
-  """Deregister a node from Chef"""
+  '''
+  Deregister a node from Chef
+  '''
   if not amRoot():
     raise RuntimeError, 'This must be run as root'
 
