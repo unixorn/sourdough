@@ -14,11 +14,11 @@ Sourdough is a tool to install chef-client during instance boot.
 
 ### EC2
 
-If we're in EC2, we look for a Node tag/knob. If the Node tag/knob exists, our node name will be **AWS_REGION-NODE_TAG_KNOB-INSTANCE_ID**
+If we're in EC2, we look for a Node tag/knob. If a Node tag or knob exists, our node name will be **AWS_REGION-NODE_TAG_KNOB-INSTANCE_ID**
 
-If the node tag/knob doesn't exist, we look for the Hostname tag/knob and set the node name to **AWS_REGION-HOSTNAME_TAGKNOB**.
+If the node tag and knob don't exist, we look for a Hostname tag or knob and set the node name to **AWS_REGION-HOSTNAME_TAGKNOB**.
 
-If the Hostname tag/knob is missing we fail back to reading the output of `hostname`
+If the Hostname tag or knob are both missing we fail back to reading the output of `hostname`.
 
 ### Outside EC2
 
@@ -32,8 +32,8 @@ contents of that - if there's no knob file we use the output of
 
 The first thing we do is check for `/etc/knobs/Runlist`. If that's present, we set the runlist to the contents of that file.
 
-If there is no /etc/knobs/Runlist, we read the instance's Runlist tag and set the runlist to that.
+If there is no `/etc/knobs/Runlist` file, we read the instance's **Runlist** tag and set the runlist to that.
 
 ## What Chef environment does Sourdough use
 
-Similarly to how if find the Runlist, sourdough Looks for `/etc/knobs/Environment` and if that is missing, the Environment tag for the instance.
+Similarly to how it determines the Runlist, `sourdough` looks for `/etc/knobs/Environment` and if that is missing, the **Environment** tag for the instance.
