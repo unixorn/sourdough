@@ -37,6 +37,7 @@ this = sys.modules[__name__]
 
 # Set some module constants
 CHEF_D = '/etc/chef'
+DEFAULT_REGION = 'undetermined-region'
 
 def amRoot():
   '''
@@ -160,6 +161,7 @@ def readKnobOrTag(name, connection=None):
       return data
     except RuntimeError:
       return None
+  return None # No knobfile and we're either outside EC2 or no tag either
 
 
 def loadHostname():
@@ -183,6 +185,9 @@ def getEnvironment():
   :rtype: str
   '''
   environment = readKnobOrTag(name='Environment')
+  if not environment:
+    environment = 'default'
+    this.logger.warning('Could not read tag or knobfile for environment, using %s', environment)
   this.logger.debug("Environment: %s", environment)
   return environment.lower()
 
@@ -344,11 +349,14 @@ def infect(connection=None):
 
   logger.info('Assimilating instance into Chef')
 
-  # Assume AWS credentials are in the environment or the instance is using an IAM role
-  if not connection:
-    connection = getEC2connection()
+  if inEC2():
+    # Assume AWS credentials are in the environment or the instance is using an IAM role
+    if not connection:
+      connection = getEC2connection()
 
-  region = haze.ec2.myRegion()
+    region = haze.ec2.myRegion()
+  else:
+    region = readKnobOrTag('region')
   logger.debug('region: %s', region)
 
   # Determine parameters for initial Chef run
@@ -365,16 +373,19 @@ def infect(connection=None):
   with open('/etc/sourdough/sourdough.toml', 'r') as yeastFile:
     yeast = toml.load(yeastFile)['chef-registration']
 
-  # Sanity check
+  # Sanity checks
+  if not region:
+    region = DEFAULT_REGION
+    logger.warning('Could not determine a region, using %s', region)
   if not runlist:
     # Use runlist from sourdough starter
     if 'default_runlist'in yeast.keys():
-      logger.debug('Using runlist from sourdough starter')
+      logger.warning('Using runlist from sourdough starter')
       runlist = yeast['default_runlist']
     else:
       raise RuntimeError, 'Could not determine a runlist during Chef assimilation'
   else:
-    logger.info("Using runlist: %s", runlist)
+    logger.info('Using runlist: %s', runlist)
 
   nodeName = generateNodeName()
 
@@ -382,16 +393,16 @@ def infect(connection=None):
   if 'chef_server_url' in yeast.keys():
     chefServerUrl = yeast['chef_server_url']
   else:
-    logger.debug('No chef_server_url in sourdough.toml, assuming you want Hosted Chef')
+    logger.warning('No chef_server_url in sourdough.toml, assuming you want Hosted Chef')
     chefServerUrl = 'https://api.chef.io/organizations'
-  logger.debug("Setting Chef Server url to %s", chefServerUrl)
+  logger.info('Setting Chef Server url to %s', chefServerUrl)
 
   # If there is no Chef log location specified in sourdough.toml, default to STDOUT
   if 'chef_log_location' in yeast.keys():
     chefLogLocation = yeast['chef_log_location']
   else:
     chefLogLocation = 'STDOUT'
-  logger.debug("Setting Chef Server url to %s", chefServerUrl)
+  logger.info('Setting Chef Server url to %s', chefServerUrl)
 
   # Configure Chef
   clientConfiguration = generateClientConfiguration(nodeName=nodeName,
@@ -445,11 +456,19 @@ def runner(connection=None):
   if not isCheffed():
     raise RuntimeError, 'Chef has not been installed'
 
-  # Assume AWS credentials are in the environment or the instance is using an IAM role
-  if not connection:
-    connection = getEC2connection()
+  if inEC2():
+    # Assume AWS credentials are in the environment or the instance is using an IAM role
+    if not connection:
+      connection = getEC2connection()
 
-  region = haze.ec2.myRegion()
+    region = haze.ec2.myRegion()
+  else:
+    region = readKnobOrTag('region')
+
+  if not region:
+    region = DEFAULT_REGION
+  logger.debug('region: %s', region)
+
   runlist = getRunlist()
   try:
     environment = getEnvironment()
