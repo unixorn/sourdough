@@ -37,7 +37,9 @@ this = sys.modules[__name__]
 
 # Set some module constants
 CHEF_D = '/etc/chef'
+DEFAULT_ENVIRONMENT = '_default'
 DEFAULT_REGION = 'undetermined-region'
+DEFAULT_RUNLIST = 'nucleus'
 
 def amRoot():
   '''
@@ -186,9 +188,17 @@ def getEnvironment():
   '''
   environment = readKnobOrTag(name='Environment')
   if not environment:
-    environment = 'default'
-    this.logger.warning('Could not read tag or knobfile for environment, using %s', environment)
-  this.logger.debug("Environment: %s", environment)
+    # Load sourdough configuration values
+    with open('/etc/sourdough/sourdough.toml', 'r') as yeastFile:
+      yeast = toml.load(yeastFile)['chef-registration']
+
+    if 'default_environment' in yeast.keys():
+      environment = yeast['default_environment']
+      this.logger.warning('Cannot read tag or knob file for environment, using %s from sourdough yeast file', environment)
+    else:
+      environment = DEFAULT_ENVIRONMENT
+      this.logger.warning('Cannot read environment from tag or knob file, setting it to %s', environment)
+  this.logger.debug('Environment: %s', environment)
   return environment.lower()
 
 
@@ -210,7 +220,19 @@ def getRunlist():
   :rtype: str
   '''
   runlist = readKnobOrTag(name='Runlist')
-  this.logger.debug("Runlist: %s", runlist)
+  if not runlist:
+    # Load sourdough configuration values
+    with open('/etc/sourdough/sourdough.toml', 'r') as yeastFile:
+      yeast = toml.load(yeastFile)['chef-registration']
+
+    if 'default_runlist' in yeast.keys():
+      runlist = yeast['default_runlist']
+      this.logger.warning('Cannot read runlist from tag or knob file, using %s from sourdough yeast file', runlist)
+    else:
+      runlist = DEFAULT_RUNLIST
+      this.logger.warning('Cannot read runlist from tag or knob file, setting it to %s', runlist)
+
+  this.logger.debug('Runlist: %s', runlist)
   return runlist
 
 
@@ -377,15 +399,6 @@ def infect(connection=None):
   if not region:
     region = DEFAULT_REGION
     logger.warning('Could not determine a region, using %s', region)
-  if not runlist:
-    # Use runlist from sourdough starter
-    if 'default_runlist'in yeast.keys():
-      logger.warning('Using runlist from sourdough starter')
-      runlist = yeast['default_runlist']
-    else:
-      raise RuntimeError, 'Could not determine a runlist during Chef assimilation'
-  else:
-    logger.info('Using runlist: %s', runlist)
 
   nodeName = generateNodeName()
 
@@ -474,10 +487,6 @@ def runner(connection=None):
     environment = getEnvironment()
   except RuntimeError:
     environment = None
-
-  # Sanity check
-  if not runlist:
-    raise RuntimeError, 'Could not determine the runlist'
 
   chefCommand = ['chef-client', '--run-lock-timeout', '0', '--runlist', runlist]
   if environment:
