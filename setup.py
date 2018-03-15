@@ -1,8 +1,7 @@
 #!/usr/bin/env python
-#
 # Sourdough
 #
-# Copyright 2017 Joe Block <jpb@unixorn.net>
+# Copyright 2017-2018 Joe Block <jpb@unixorn.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,9 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
+'''
 setup.py for sourdough
-"""
+'''
 
 import os
 import shutil
@@ -36,15 +35,15 @@ def system_call(command):
   return p.stdout.read()
 
 
-name = "sourdough"
-version = "0.5.%s" % (system_call('git rev-list HEAD --count').strip())
+name = 'sourdough'
+version = '0.5.' + system_call('git rev-list HEAD --count').strip().decode('utf-8')
 
 
 class CleanCommand(Command):
   '''
   Add a clean option to setup.py's commands
   '''
-  description = "Clean up"
+  description = 'Clean up'
   user_options = []
 
 
@@ -58,10 +57,10 @@ class CleanCommand(Command):
 
   def run(self):
     assert os.getcwd() == self.cwd, "Must be in package root: %s" % self.cwd
-    if os.path.isdir("build"):
-      shutil.rmtree("build")
-    if os.path.isdir("dist"):
-      shutil.rmtree("dist")
+    if os.path.isdir('build'):
+      shutil.rmtree('build')
+    if os.path.isdir('dist'):
+      shutil.rmtree('dist')
 
 
 setup(
@@ -95,6 +94,7 @@ setup(
       "sourdough = %s.cli.commands:sourdoughDriver" % name,
       "sourdough-bootstrap = %s.sourdough:infect" % name,
       "sourdough-deregister = %s.sourdough:deregisterFromChef" % name,
+      "sourdough-runner = %s.sourdough:runner" % name,
       "sourdough-starter = %s.sourdough:runner" % name
     ]
   }
