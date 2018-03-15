@@ -20,3 +20,5 @@ wheel:
 
 develop:
 	python setup.py develop
+
+u: upload

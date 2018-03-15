@@ -6,7 +6,9 @@
 [![Issue Count](https://codeclimate.com/github/unixorn/sourdough/badges/issue_count.svg)](https://codeclimate.com/github/unixorn/sourdough)
 [![GitHub stars](https://img.shields.io/github/stars/unixorn/sourdough.svg)](https://github.com/unixorn/git-extra-commands/stargazers)
 
-Sourdough is a tool to install chef-client during instance boot.
+Sourdough is a tool to install `chef-client` during instance boot, or to run `chef-client` after boot.
+
+Sourdough reads the **Environment** and **Runlist** EC2 tags and runs `chef-client` with those settings so you can update an instance's Chef settings just by tweaking its tags. This also lets you see what runlist and environment an instance has using just the AWS webui, so no more having to correlate Chef information for your instances in two places.
 
 # FAQs
 
@@ -18,7 +20,7 @@ If we're in EC2, we look for a Node tag/knob. If a Node tag or knob exists, our 
 
 If the node tag and knob don't exist, we look for a Hostname tag or knob and set the node name to **AWS_REGION-HOSTNAME_TAGKNOB**.
 
-If the Hostname tag or knob are both missing we fail back to reading the output of `hostname`.
+If the Hostname tag or knob are both missing we fail back to reading the output of `hostname` which is better than nothing.
 
 ### Outside EC2
 
@@ -32,8 +34,8 @@ contents of that - if there's no knob file we use the output of
 
 The first thing we do is check for `/etc/knobs/Runlist`. If that's present, we set the runlist to the contents of that file.
 
-If there is no `/etc/knobs/Runlist` file, we read the instance's **Runlist** tag and set the runlist to that.
+If there is no `/etc/knobs/Runlist` file, we read the instance's **Runlist** tag and set the runlist to that, and if there is no Runlist tag we look for a **default_runlist** entry in `/etc/sourdough/sourdough.toml`
 
 ## What Chef environment does Sourdough use
 
-Similarly to how it determines the Runlist, `sourdough` looks for `/etc/knobs/Environment` and if that is missing, the **Environment** tag for the instance.
+Similarly to how it determines the Runlist, `sourdough` looks for `/etc/knobs/Environment` and if that is missing, the **Environment** tag for the instance, and if that is missing, looks for a **default_environment** entry in `/etc/sourdough/sourdough.toml`
