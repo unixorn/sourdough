@@ -36,7 +36,7 @@ def system_call(command):
 
 
 name = 'sourdough'
-version = '0.5.' + system_call('git rev-list HEAD --count').strip().decode('utf-8')
+version = '0.5.38'
 
 
 class CleanCommand(Command):
