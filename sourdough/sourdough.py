@@ -493,12 +493,6 @@ def infect(connection=None):
   # Use custom environment vars for chef-client
   clientEnvVars = createEnvForClient()
 
-  # Override os environment with any vars specified in
-  # environment-variables.json, but don't replace, just
-  # add from our extras and replace any vars with the same
-  # names
-  clientEnvVars.update(clientVars)
-
   # Resistance is futile.
   logger.info('Assimilating node %s...', nodeName)
   logger.debug("  chef-client: %s", systemCall('which chef-client').strip())
