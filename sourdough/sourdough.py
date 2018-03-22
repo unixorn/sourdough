@@ -297,12 +297,18 @@ def loadClientEnvironmentVariables(envFile='/etc/sourdough/environment-variables
   See if there are extra environment variables to pass to chef-client
   '''
   try:
-    with open(envFile) as environmentJSON:
-      extraEnvironmentVariables = json.load(environmentJSON)
-      return extraEnvironmentVariables
+    if os.access(envFile, os.R_OK):
+      with open(envFile) as environmentJSON:
+        extraEnvironmentVariables = json.load(environmentJSON)
+        this.logger.info('Customizing chef-client environment from %s', envFile)
+        this.logger.info('  Environment overrides: %s', extraEnvironmentVariables)
+        return extraEnvironmentVariables
+    else:
+      this.logger.warn('%s does not exist, skipping environment customization', envFile)
+      return {}
   except Exception as err:
-    print("Could not load env vars from %s" % envFile)
-    print("Error: {0}".format(err))
+    this.logger.warn("Could not load env vars from %s", envFile)
+    this.logger.warn("Error: {0}".format(err))
     return {}
 
 
@@ -365,6 +371,27 @@ validation_client_name "%(validationClientName)s"
   logger.debug('Client Configuration')
   logger.debug(clientConfiguration)
   return clientConfiguration
+
+
+def createEnvForClient():
+  '''
+  Create environment variables for chef-client
+  '''
+  # Start constructing the environment vars for chef-client
+  clientEnvVars = {}
+
+  # Load any extra env vars we want to pass
+  clientVars = loadClientEnvironmentVariables()
+
+  # Start with our environment
+  clientEnvVars.update(os.environ)
+
+  # Override os environment with any vars specified in
+  # environment-variables.json, but don't replace, just
+  # add from our extras and replace any vars with the same
+  # names
+  clientEnvVars.update(clientVars)
+  return clientEnvVars
 
 
 def infect(connection=None):
@@ -457,14 +484,8 @@ def infect(connection=None):
   with open(firstbootJsonPath, 'w') as firstbootJson:
     firstbootJson.write('{"run_list":["nucleus"]}')
 
-  # start constructing the environment vars for chef-client
-  clientEnvVars = {}
-
-  # Load any extra env vars we want to pass
-  clientVars = loadClientEnvironmentVariables()
-
-  # Start with our environment
-  clientEnvVars.update(os.environ)
+  # Use custom environment vars for chef-client
+  clientEnvVars = createEnvForClient()
 
   # Override os environment with any vars specified in
   # environment-variables.json, but don't replace, just
@@ -516,12 +537,15 @@ def runner(connection=None):
   except RuntimeError:
     environment = None
 
+  # Use custom environment vars for chef-client
+  clientEnvVars = createEnvForClient()
+
   chefCommand = ['chef-client', '--run-lock-timeout', '0', '--runlist', runlist]
   if environment:
     chefCommand = chefCommand + ['--environment', environment]
 
   logger.debug("chefCommand: %s", chefCommand)
-  check_call(chefCommand)
+  check_call(chefCommand, env=clientEnvVars)
 
 
 def deregisterFromChef():
