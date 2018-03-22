@@ -182,7 +182,7 @@ def loadHostname():
 
 def getEnvironment():
   '''
-  Determine an instance's Environment
+  Determine an instance's Chef Environment
 
   :rtype: str
   '''
@@ -291,6 +291,20 @@ def getEC2connection():
 
 
 # Chef helper functions
+
+def loadClientEnvironmentVariables(envFile='/etc/sourdough/environment-variables.json'):
+  '''
+  See if there are extra environment variables to pass to chef-client
+  '''
+  try:
+    with open(envFile) as environmentJSON:
+      extraEnvironmentVariables = json.load(environmentJSON)
+      return extraEnvironmentVariables
+  except Exception as err:
+    print("Could not load env vars from %s" % envFile)
+    print("Error: {0}".format(err))
+    return {}
+
 
 def isCheffed():
   '''
@@ -443,13 +457,27 @@ def infect(connection=None):
   with open(firstbootJsonPath, 'w') as firstbootJson:
     firstbootJson.write('{"run_list":["nucleus"]}')
 
+  # start constructing the environment vars for chef-client
+  clientEnvVars = {}
+
+  # Load any extra env vars we want to pass
+  clientVars = loadClientEnvironmentVariables()
+
+  # Start with our environment
+  clientEnvVars.update(os.environ)
+
+  # Override os environment with any vars specified in
+  # environment-variables.json, but don't replace, just
+  # add from our extras and replace any vars with the same
+  # names
+  clientEnvVars.update(clientVars)
+
   # Resistance is futile.
   logger.info('Assimilating node %s...', nodeName)
   logger.debug("  chef-client: %s", systemCall('which chef-client').strip())
   borgCommand = ['chef-client', '--json-attributes', firstbootJsonPath, '--validation_key', yeast['validation_key']]
   logger.debug("borg command: %s", borgCommand)
-
-  check_call(borgCommand)
+  check_call(borgCommand, env=clientEnvVars)
 
 
 def runner(connection=None):
