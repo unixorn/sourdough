@@ -295,7 +295,11 @@ def getEC2connection():
 def loadClientEnvironmentVariables(envFile='/etc/sourdough/environment-variables.json'):
   '''
   See if there are extra environment variables to pass to chef-client
+
+  rtype: dict
   '''
+  assert isinstance(envFile, basestring), ("envFile must be a string but is %r" % envFile)
+
   try:
     if os.access(envFile, os.R_OK):
       with open(envFile) as environmentJSON:
@@ -376,6 +380,8 @@ validation_client_name "%(validationClientName)s"
 def createEnvForClient():
   '''
   Create environment variables for chef-client
+
+  rtype: dict
   '''
   # Start constructing the environment vars for chef-client
   clientEnvVars = {}
