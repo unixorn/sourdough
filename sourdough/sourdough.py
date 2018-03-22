@@ -182,7 +182,7 @@ def loadHostname():
 
 def getEnvironment():
   '''
-  Determine an instance's Environment
+  Determine an instance's Chef Environment
 
   :rtype: str
   '''
@@ -292,6 +292,30 @@ def getEC2connection():
 
 # Chef helper functions
 
+def loadClientEnvironmentVariables(envFile='/etc/sourdough/environment-variables.json'):
+  '''
+  See if there are extra environment variables to pass to chef-client
+
+  rtype: dict
+  '''
+  assert isinstance(envFile, basestring), ("envFile must be a string but is %r" % envFile)
+
+  try:
+    if os.access(envFile, os.R_OK):
+      with open(envFile) as environmentJSON:
+        extraEnvironmentVariables = json.load(environmentJSON)
+        this.logger.info('Customizing chef-client environment from %s', envFile)
+        this.logger.info('  Environment overrides: %s', extraEnvironmentVariables)
+        return extraEnvironmentVariables
+    else:
+      this.logger.warn('%s does not exist, skipping environment customization', envFile)
+      return {}
+  except Exception as err:
+    this.logger.warn("Could not load env vars from %s", envFile)
+    this.logger.warn("Error: {0}".format(err))
+    return {}
+
+
 def isCheffed():
   '''
   Detect if Chef has been installed on a system.
@@ -351,6 +375,29 @@ validation_client_name "%(validationClientName)s"
   logger.debug('Client Configuration')
   logger.debug(clientConfiguration)
   return clientConfiguration
+
+
+def createEnvForClient():
+  '''
+  Create environment variables for chef-client
+
+  rtype: dict
+  '''
+  # Start constructing the environment vars for chef-client
+  clientEnvVars = {}
+
+  # Load any extra env vars we want to pass
+  clientVars = loadClientEnvironmentVariables()
+
+  # Start with our environment
+  clientEnvVars.update(os.environ)
+
+  # Override os environment with any vars specified in
+  # environment-variables.json, but don't replace, just
+  # add from our extras and replace any vars with the same
+  # names
+  clientEnvVars.update(clientVars)
+  return clientEnvVars
 
 
 def infect(connection=None):
@@ -443,13 +490,21 @@ def infect(connection=None):
   with open(firstbootJsonPath, 'w') as firstbootJson:
     firstbootJson.write('{"run_list":["nucleus"]}')
 
+  # Use custom environment vars for chef-client
+  clientEnvVars = createEnvForClient()
+
+  # Override os environment with any vars specified in
+  # environment-variables.json, but don't replace, just
+  # add from our extras and replace any vars with the same
+  # names
+  clientEnvVars.update(clientVars)
+
   # Resistance is futile.
   logger.info('Assimilating node %s...', nodeName)
   logger.debug("  chef-client: %s", systemCall('which chef-client').strip())
   borgCommand = ['chef-client', '--json-attributes', firstbootJsonPath, '--validation_key', yeast['validation_key']]
   logger.debug("borg command: %s", borgCommand)
-
-  check_call(borgCommand)
+  check_call(borgCommand, env=clientEnvVars)
 
 
 def runner(connection=None):
@@ -488,12 +543,15 @@ def runner(connection=None):
   except RuntimeError:
     environment = None
 
+  # Use custom environment vars for chef-client
+  clientEnvVars = createEnvForClient()
+
   chefCommand = ['chef-client', '--run-lock-timeout', '0', '--runlist', runlist]
   if environment:
     chefCommand = chefCommand + ['--environment', environment]
 
   logger.debug("chefCommand: %s", chefCommand)
-  check_call(chefCommand)
+  check_call(chefCommand, env=clientEnvVars)
 
 
 def deregisterFromChef():

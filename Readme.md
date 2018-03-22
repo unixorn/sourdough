@@ -39,3 +39,7 @@ If there is no `/etc/knobs/Runlist` file, we read the instance's **Runlist** tag
 ## What Chef environment does Sourdough use
 
 Similarly to how it determines the Runlist, `sourdough` looks for `/etc/knobs/Environment` and if that is missing, the **Environment** tag for the instance, and if that is missing, looks for a **default_environment** entry in `/etc/sourdough/sourdough.toml`
+
+## How do I have sourdough pass environment variables to chef-client?
+
+`sourdough` will look for `/etc/sourdough/environment-variables.json`, and if present and valid JSON, will pass the variables inside to `chef-client` when it runs it.
