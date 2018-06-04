@@ -333,6 +333,22 @@ def isCheffed():
   logger.critical('Chef client files found')
   return True
 
+def isDisabled():
+  '''
+  Detect if Chef converge disabled on a system.
+
+  rtype: bool
+  '''
+  logger = this.logger
+  logger.info('Checking for disable switch')
+  disableFile = "/etc/sourdough/Disable-Sourdough"
+  logger.debug("  Checking for %s", disableFile)
+  if os.path.isfile(disableFile):
+      logger.debug("  %s found", disableFile)
+      logger.critical('Chef converge disabled')
+      return False
+  logger.info('Disable switch not found')
+  return True
 
 def generateClientConfiguration(nodeName=None,
                                 validationClientName=None,
@@ -518,6 +534,9 @@ def runner(connection=None):
   if not isCheffed():
     raise RuntimeError, 'Chef has not been installed'
 
+  if not isDisabled():
+    sys.exit()
+
   if inEC2():
     # Assume AWS credentials are in the environment or the instance is using an IAM role
     if not connection:
@@ -576,3 +595,4 @@ def deregisterFromChef():
 if __name__ == '__main__':
   print 'This is a library, not a stand alone script'
   sys.exit(1)
+  
