@@ -346,9 +346,9 @@ def isDisabled():
   if os.path.isfile(disableFile):
       logger.debug("  %s found", disableFile)
       logger.critical('Chef converge disabled')
-      return False
+      return True
   logger.info('Disable switch not found')
-  return True
+  return False
 
 def generateClientConfiguration(nodeName=None,
                                 validationClientName=None,
@@ -534,8 +534,8 @@ def runner(connection=None):
   if not isCheffed():
     raise RuntimeError, 'Chef has not been installed'
 
-  if not isDisabled():
-    sys.exit()
+  if isDisabled():
+    sys.exit(1)
 
   if inEC2():
     # Assume AWS credentials are in the environment or the instance is using an IAM role
@@ -595,4 +595,3 @@ def deregisterFromChef():
 if __name__ == '__main__':
   print 'This is a library, not a stand alone script'
   sys.exit(1)
-  
