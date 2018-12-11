@@ -214,6 +214,15 @@ def readSetting(setting, fallback=None, tomlFile=DEFAULT_TOML_FILE):
   return v
 
 
+def getConvergeWait():
+  '''
+  How long should we wait for another chef-client converge run to finish?
+
+  :rtype: int
+  '''
+  return readSetting(setting='converge_wait', fallback=DEFAULT_WAIT_FOR_ANOTHER_CONVERGE)
+
+
 def getEnvironment():
   '''
   Determine an instance's Chef Environment
@@ -524,10 +533,16 @@ def infect(connection=None):
   # Use custom environment vars for chef-client
   clientEnvVars = createEnvForClient()
 
+  # How long should we wait for other chef-client processes to finish?
+  convergeDelay = getConvergeWait()
+
   # Resistance is futile.
   logger.info('Assimilating node %s...', nodeName)
   logger.debug("  chef-client: %s", systemCall('which chef-client').strip())
-  borgCommand = ['chef-client', '--json-attributes', firstbootJsonPath, '--validation_key', yeast['validation_key']]
+  borgCommand = ['chef-client',
+                 '--json-attributes', firstbootJsonPath,
+                 '--validation_key', yeast['validation_key'],
+                 '--run-lock-timeout', convergeDelay]
   logger.debug("borg command: %s", borgCommand)
   check_call(borgCommand, env=clientEnvVars)
 
@@ -566,15 +581,19 @@ def runner(connection=None):
   logger.debug('region: %s', region)
 
   runlist = getRunlist()
+
   try:
     environment = getEnvironment()
   except RuntimeError:
     environment = None
 
+  # How long should we wait for other chef-client processes to finish?
+  convergeDelay = getConvergeWait()
+
   # Use custom environment vars for chef-client
   clientEnvVars = createEnvForClient()
 
-  chefCommand = ['chef-client', '--run-lock-timeout', '0', '--runlist', runlist]
+  chefCommand = ['chef-client', '--run-lock-timeout', convergeDelay, '--runlist', runlist]
   if environment:
     chefCommand = chefCommand + ['--environment', environment]
 
