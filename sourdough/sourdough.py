@@ -40,6 +40,8 @@ CHEF_D = '/etc/chef'
 DEFAULT_ENVIRONMENT = '_default'
 DEFAULT_REGION = 'undetermined-region'
 DEFAULT_RUNLIST = 'nucleus'
+DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
+DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 
 def amRoot():
   '''
@@ -57,7 +59,7 @@ def systemCall(command):
   '''
   Run a command and return stdout.
 
-  Would be better to use subprocess.check_output, but this works on 2.6,
+  It would be better to use subprocess.check_output, but this works on 2.6,
   which is still the system Python on CentOS 7.
 
   :param str command: Command to run
@@ -178,6 +180,26 @@ def loadHostname():
     hostname = systemCall('hostname').strip()
   this.logger.debug("hostname: %s", hostname)
   return hostname
+
+
+def readSetting(setting, fallback=None, tomlFile=DEFAULT_TOML_FILE):
+  '''
+  Read a setting value from AWS tag, knob file, or sourdough.toml in
+  that order, and return the fallback if we can't find another value.
+  '''
+  v = readKnobOrTag(setting)
+  if not v:
+    # Did they stick it in the toml settings file?
+    with open(tomlFile, 'r') as yeastFile:
+      yeast = toml.load(yeastFile)['chef-registration']
+    if setting in yeast.keys():
+      v = yeast[setting]
+      this.logger.warning('Cannot read tag or knob file for %s, using %s from sourdough yeast file', setting, v)
+    else:
+      v = fallback
+      this.logger.warning('Cannot read tag or knob file for %s, using fallback value of %s', setting, v)
+  this.logger.debug('%s: %s', setting, v)
+  return v
 
 
 def getEnvironment():
