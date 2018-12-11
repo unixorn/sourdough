@@ -138,7 +138,7 @@ def getAWSAccountID():
   return jsonData['accountId']
 
 
-def readKnobOrTag(name, connection=None):
+def readKnobOrTag(name, connection=None, knobDirectory='/etc/knobs'):
   '''
   Read a knob file or EC2 instance tag
 
@@ -150,7 +150,7 @@ def readKnobOrTag(name, connection=None):
 
   # First, look for a knob file. If that exists, we don't care what the
   # tags say.  This way we work in vagrant VMs or on bare metal.
-  data = readKnob(knobName=name)
+  data = readKnob(knobName=name, knobDirectory=knobDirectory)
   if data:
     return data
 
@@ -178,6 +178,7 @@ def loadHostname():
 
   :rtype: str
   '''
+  loadSharedLogger()
   hostname = readKnobOrTag(name='Hostname')
   if not hostname:
     this.logger.debug('No hostname tag or knob, falling back to hostname command output')
@@ -186,7 +187,14 @@ def loadHostname():
   return hostname
 
 
-def readSetting(setting, fallback=None, tomlFile=DEFAULT_TOML_FILE):
+def loadSharedLogger():
+  try:
+    logger = this.logger
+  except AttributeError:
+    this.logger = getCustomLogger('no-logger')
+
+
+def readSetting(setting, fallback=None, tomlFile=DEFAULT_TOML_FILE, knobDirectory='/etc/knobs'):
   '''
   Read a setting value from AWS tag, knob file, or sourdough.toml in
   that order, and return the fallback if we can't find another value.
@@ -199,7 +207,8 @@ def readSetting(setting, fallback=None, tomlFile=DEFAULT_TOML_FILE):
   assert isinstance(setting, basestring), ("setting must be a string but is %r" % setting)
   assert isinstance(tomlFile, basestring), ("tomlFile must be a string but is %r" % tomlFile)
 
-  v = readKnobOrTag(setting)
+  loadSharedLogger()
+  v = readKnobOrTag(setting, knobDirectory=knobDirectory)
   if not v:
     # Did they stick it in the toml settings file?
     with open(tomlFile, 'r') as yeastFile:
@@ -280,6 +289,7 @@ def generateNodeName():
   :param boto.ec2.connection connection: A boto connection to ec2
   :rtype: str
   '''
+  loadSharedLogger()
   logger = this.logger
   logger.info('Determining Chef node name')
   if inEC2():
@@ -321,6 +331,7 @@ def loadClientEnvironmentVariables(envFile='/etc/sourdough/environment-variables
   '''
   assert isinstance(envFile, basestring), ("envFile must be a string but is %r" % envFile)
 
+  loadSharedLogger()
   try:
     if os.access(envFile, os.R_OK):
       with open(envFile) as environmentJSON:
@@ -343,6 +354,7 @@ def isCheffed():
 
   rtype: bool
   '''
+  loadSharedLogger()
   logger = this.logger
   logger.info('Checking for existing Chef installation')
   chefFiles = ["%s/client.rb" % CHEF_D, "%s/client.pem" % CHEF_D]
@@ -361,6 +373,7 @@ def isDisabled():
 
   rtype: bool
   '''
+  loadSharedLogger()
   logger = this.logger
   logger.info('Checking for disable switch')
   disableFile = "/etc/sourdough/Disable-Sourdough"
@@ -392,6 +405,7 @@ def generateClientConfiguration(nodeName=None,
   assert isinstance(nodeName, basestring), ("nodeName must be a string but is %r" % nodeName)
   assert isinstance(validationClientName, basestring), ("validationClientName must be a string but is %r" % validationClientName)
 
+  loadSharedLogger()
   # We want to share our logger object across the module
   logger = this.logger
 
