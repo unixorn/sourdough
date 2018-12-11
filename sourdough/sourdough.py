@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2017 Joe Block <jpb@unixorn.net>
+# Copyright 2017-2018 Joe Block <jpb@unixorn.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,10 +38,12 @@ this = sys.modules[__name__]
 # Set some module constants
 CHEF_D = '/etc/chef'
 DEFAULT_ENVIRONMENT = '_default'
+DEFAULT_NODE_PREFIX = 'chef_node'
 DEFAULT_REGION = 'undetermined-region'
 DEFAULT_RUNLIST = 'nucleus'
 DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
+
 
 def amRoot():
   '''
@@ -74,6 +76,7 @@ def systemCall(command):
 def getCustomLogger(name):
   '''
   Set up logging
+
   :param str name: What log level to set
   '''
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
@@ -123,6 +126,8 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
 def getAWSAccountID():
   '''
   Print an instance's AWS account number or 0 when not in EC2
+
+  :rtype: int
   '''
   link = "http://169.254.169.254/latest/dynamic/instance-identity/document"
   try:
@@ -141,7 +146,6 @@ def readKnobOrTag(name, connection=None):
   :param boto.ec2.connection connection: A boto connection to ec2
   :rtype: str
   '''
-
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
   # First, look for a knob file. If that exists, we don't care what the
@@ -186,7 +190,15 @@ def readSetting(setting, fallback=None, tomlFile=DEFAULT_TOML_FILE):
   '''
   Read a setting value from AWS tag, knob file, or sourdough.toml in
   that order, and return the fallback if we can't find another value.
+
+  :param str setting: Which setting to search for
+  :param str tomlFie: Path to TOML format settings file
+
+  :rtype: str or int
   '''
+  assert isinstance(setting, basestring), ("setting must be a string but is %r" % setting)
+  assert isinstance(tomlFile, basestring), ("tomlFile must be a string but is %r" % tomlFile)
+
   v = readKnobOrTag(setting)
   if not v:
     # Did they stick it in the toml settings file?
@@ -210,17 +222,7 @@ def getEnvironment():
   '''
   environment = readKnobOrTag(name='Environment')
   if not environment:
-    # Load sourdough configuration values
-    with open('/etc/sourdough/sourdough.toml', 'r') as yeastFile:
-      yeast = toml.load(yeastFile)['chef-registration']
-
-    if 'default_environment' in yeast.keys():
-      environment = yeast['default_environment']
-      this.logger.warning('Cannot read tag or knob file for environment, using %s from sourdough yeast file', environment)
-    else:
-      environment = DEFAULT_ENVIRONMENT
-      this.logger.warning('Cannot read environment from tag or knob file, setting it to %s', environment)
-  this.logger.debug('Environment: %s', environment)
+    environment = readSetting(setting='default_environment', fallback=DEFAULT_ENVIRONMENT)
   return environment.lower()
 
 
@@ -230,8 +232,7 @@ def getNodePrefix():
 
   :rtype: str
   '''
-  node = readKnobOrTag(name='Node')
-  this.logger.debug("Node: %s", node)
+  node = readSetting(setting='Node', fallback=DEFAULT_NODE_PREFIX)
   return node
 
 
@@ -243,18 +244,7 @@ def getRunlist():
   '''
   runlist = readKnobOrTag(name='Runlist')
   if not runlist:
-    # Load sourdough configuration values
-    with open('/etc/sourdough/sourdough.toml', 'r') as yeastFile:
-      yeast = toml.load(yeastFile)['chef-registration']
-
-    if 'default_runlist' in yeast.keys():
-      runlist = yeast['default_runlist']
-      this.logger.warning('Cannot read runlist from tag or knob file, using %s from sourdough yeast file', runlist)
-    else:
-      runlist = DEFAULT_RUNLIST
-      this.logger.warning('Cannot read runlist from tag or knob file, setting it to %s', runlist)
-
-  this.logger.debug('Runlist: %s', runlist)
+    runlist = readSetting(setting='default_runlist', fallback=DEFAULT_RUNLIST)
   return runlist
 
 
@@ -355,9 +345,10 @@ def isCheffed():
   logger.critical('Chef client files found')
   return True
 
+
 def isDisabled():
   '''
-  Detect if Chef converge disabled on a system.
+  Detect if Chef converge is deliberately disabled on a system.
 
   rtype: bool
   '''
@@ -372,6 +363,7 @@ def isDisabled():
   logger.info('Disable switch not found')
   return False
 
+
 def generateClientConfiguration(nodeName=None,
                                 validationClientName=None,
                                 chefOrganization=None,
@@ -383,6 +375,7 @@ def generateClientConfiguration(nodeName=None,
   :param str nodeName: node's chef name
   :param str validationClientName: what name to use with the cert
   :param str chefOrganization: What organization name to use with Hosted Chef
+
   :rtype: str
   '''
   assert isinstance(chefOrganization, basestring), ("chefOrganization must be a string but is %r" % chefOrganization)
