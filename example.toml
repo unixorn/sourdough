@@ -6,3 +6,4 @@ validation_key = "/etc/OmniConsumerProducts/credentials/chef/OmniConsumerProduct
 validation_pubkey = "/etc/OmniConsumerProducts/credentials/chef/OmniConsumerProducts-validator.public.key"
 default_runlist = "ocp_base"
 chef_server = "https://api.chef.io/organizations"
+converge_wait = 600
