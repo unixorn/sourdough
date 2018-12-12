@@ -548,7 +548,7 @@ def infect(connection=None):
   clientEnvVars = createEnvForClient()
 
   # How long should we wait for other chef-client processes to finish?
-  convergeDelay = getConvergeWait()
+  convergeDelay = "%s" % getConvergeWait() # Convert to string to keep check_call happy
 
   # Resistance is futile.
   logger.info('Assimilating node %s...', nodeName)
@@ -602,7 +602,7 @@ def runner(connection=None):
     environment = None
 
   # How long should we wait for other chef-client processes to finish?
-  convergeDelay = getConvergeWait()
+  convergeDelay = "%s" % getConvergeWait() # Convert to string to keep check_call happy
 
   # Use custom environment vars for chef-client
   clientEnvVars = createEnvForClient()
