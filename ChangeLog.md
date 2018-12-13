@@ -1,5 +1,10 @@
 # Sourdough
 
+## 0.7
+
+* Add ability to set the delay to wait for other converge runs
+* Add testing
+
 ## 0.5
 
 Clean up code so we work when run out of ec2 now that we have a data center we care about.
