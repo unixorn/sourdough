@@ -21,3 +21,4 @@ vendor
 build
 dist
 *.egg-info
+README.rst
