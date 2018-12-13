@@ -35,6 +35,16 @@ def installSourdoughInContainer():
   installOut = systemCall('cd /test && python setup.py develop')
 
 
+def injectChefConfigFiles():
+    chefFiles = [
+      '/etc/chef/client.rb',
+      '/etc/chef/client.pem'
+    ]
+    for chefFile in chefFiles:
+      if not os.path.exists(chefFile):
+        systemCall("touch %s" % chefFile)
+
+
 class TestSourdough(unittest.TestCase):
 
   def setUp(self):
@@ -50,20 +60,14 @@ class TestSourdough(unittest.TestCase):
 
 
   def test_starter_cheffed(self):
-    for chefFile in self.chefFiles:
-      if not os.path.exists(chefFile):
-        systemCall("touch %s" % chefFile)
+    injectChefConfigFiles()
     cheffedRunner = systemCall('sourdough-starter')
     self.assertEqual(cheffedRunner.strip(), "--run-lock-timeout 900 --runlist ocp_base --environment _default")
 
 
   def test_starter_cheffed_and_disabled(self):
-    for chefFile in self.chefFiles:
-      if not os.path.exists(chefFile):
-        systemCall("touch %s" % chefFile)
+    injectChefConfigFiles()
     systemCall("touch /etc/sourdough/Disable-Sourdough")
-    # self.assertEqual(os.path.exists('/etc/chef/client.pem'), True)
-    # self.assertEqual(os.path.exists('/etc/chef/client.rb'), True)
     cheffedRunner = systemCall('sourdough-starter 2>&1 | grep -c converge')
     self.assertEqual(cheffedRunner.strip(), '1')
 
