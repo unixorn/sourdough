@@ -11,3 +11,4 @@ RESULTS_D=$(dirname $CHEF_CLIENT_RESULTS)
 mkdir -p "$RESULTS_D"
 
 echo $* > "$CHEF_CLIENT_RESULTS"
+echo $*
