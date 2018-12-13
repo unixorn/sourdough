@@ -18,6 +18,9 @@
 
 '''
 Test framework for sourdough
+
+You _really_ do not want to run this in a computer you care about - it will
+break your chef install.
 '''
 
 import logging
