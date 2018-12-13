@@ -26,12 +26,58 @@ import sys
 import unittest
 import sourdough
 
-from sourdough.sourdough import getCustomLogger
+from sourdough.sourdough import getCustomLogger, systemCall
 
-this = sys.modules[__name__]
+def installSourdoughInContainer():
+  installOut = systemCall('cd /test && python setup.py develop')
+
 
 class TestSourdough(unittest.TestCase):
 
+  def setUp(self):
+    self.chefFiles = [
+      '/etc/chef/client.rb',
+      '/etc/chef/client.pem'
+    ]
+
+  # Test that the scripts are calling chef-client correctly
+  def test_bootstrap(self):
+    runBootstrap = systemCall('sourdough-bootstrap')
+    self.assertEqual(runBootstrap.strip(), '--json-attributes /etc/chef/first-boot.json --validation_key /etc/OmniConsumerProducts/credentials/chef/OmniConsumerProducts-validator.private.key --run-lock-timeout 900')
+
+
+  def test_starter_cheffed(self):
+    for chefFile in self.chefFiles:
+      if not os.path.exists(chefFile):
+        systemCall("touch %s" % chefFile)
+    cheffedRunner = systemCall('sourdough-starter')
+    self.assertEqual(cheffedRunner.strip(), "--run-lock-timeout 900 --runlist ocp_base --environment _default")
+
+
+  def test_starter_cheffed_and_disabled(self):
+    for chefFile in self.chefFiles:
+      if not os.path.exists(chefFile):
+        systemCall("touch %s" % chefFile)
+    systemCall("touch /etc/sourdough/Disable-Sourdough")
+    # self.assertEqual(os.path.exists('/etc/chef/client.pem'), True)
+    # self.assertEqual(os.path.exists('/etc/chef/client.rb'), True)
+    cheffedRunner = systemCall('sourdough-starter 2>&1 | grep -c converge')
+    self.assertEqual(cheffedRunner.strip(), '1')
+
+
+  def test_starter_uncheffed(self):
+    for chefFile in self.chefFiles:
+      if os.path.exists(chefFile):
+        os.remove(chefFile)
+    uncheffedRunner = systemCall('sourdough-starter 2>&1 | grep RuntimeError')
+    self.assertEqual(uncheffedRunner.strip(), "raise RuntimeError, 'Chef has not been installed'\nRuntimeError: Chef has not been installed")
+
+
+  def test_chef_shim(self):
+    self.assertEqual(systemCall('/usr/local/bin/chef-client foo bar').strip(), 'foo bar')
+
+
+  # Test internal functions
   def test_getAWSAccountID(self):
     self.assertEqual(sourdough.sourdough.getAWSAccountID(), '0')
 
@@ -57,7 +103,6 @@ class TestSourdough(unittest.TestCase):
 
 
 if __name__ == '__main__':
-  this.logger = getCustomLogger(name='sourdough-testing')
-
+  installSourdoughInContainer()
   suite = unittest.TestLoader().loadTestsFromTestCase(TestSourdough)
   unittest.TextTestRunner(verbosity=2).run(suite)
