@@ -24,6 +24,7 @@
 [![Code Climate](https://codeclimate.com/github/unixorn/sourdough/badges/gpa.svg)](https://codeclimate.com/github/unixorn/sourdough)
 [![Issue Count](https://codeclimate.com/github/unixorn/sourdough/badges/issue_count.svg)](https://codeclimate.com/github/unixorn/sourdough)
 [![GitHub stars](https://img.shields.io/github/stars/unixorn/sourdough.svg)](https://github.com/unixorn/git-extra-commands/stargazers)
+[![GitHub last commit (branch)](https://img.shields.io/github/last-commit/unixorn/sourdough/master.svg)](https://github.com/unixorn/sourdough)
 
 Sourdough is a tool to install `chef-client` during instance boot, or to run `chef-client` after boot.
 
