@@ -4,6 +4,7 @@ help:
 	@echo '`make wheel` to make a wheel file'
 	@echo '`make upload` to upload'
 	@echo '`make develop` to do a local developer install'
+	@echo '`make test` build a testing container, then run the test suite inside it via docker-compose'
 
 clean:
 	python setup.py clean
@@ -22,3 +23,12 @@ develop:
 	python setup.py develop
 
 u: upload
+
+container:
+	docker-compose build
+
+run_tests:
+	docker-compose run --rm sourdough-test /test/sourdough-tester.py
+
+test: container run_tests
+t: test
