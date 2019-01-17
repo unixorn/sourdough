@@ -1,3 +1,22 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+## Table of Contents
+
+- [Sourdough](#sourdough)
+- [Testing](#testing)
+  - [Pre-requisites](#pre-requisites)
+  - [How to run the tests](#how-to-run-the-tests)
+- [FAQs](#faqs)
+  - [How are node names generated?](#how-are-node-names-generated)
+    - [EC2](#ec2)
+    - [Outside EC2](#outside-ec2)
+  - [How is the runlist determined?](#how-is-the-runlist-determined)
+    - [EC2](#ec2-1)
+  - [What Chef environment does Sourdough use](#what-chef-environment-does-sourdough-use)
+  - [How do I have sourdough pass environment variables to chef-client?](#how-do-i-have-sourdough-pass-environment-variables-to-chef-client)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Sourdough
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -5,10 +24,23 @@
 [![Code Climate](https://codeclimate.com/github/unixorn/sourdough/badges/gpa.svg)](https://codeclimate.com/github/unixorn/sourdough)
 [![Issue Count](https://codeclimate.com/github/unixorn/sourdough/badges/issue_count.svg)](https://codeclimate.com/github/unixorn/sourdough)
 [![GitHub stars](https://img.shields.io/github/stars/unixorn/sourdough.svg)](https://github.com/unixorn/git-extra-commands/stargazers)
+[![GitHub last commit (branch)](https://img.shields.io/github/last-commit/unixorn/sourdough/master.svg)](https://github.com/unixorn/sourdough)
 
 Sourdough is a tool to install `chef-client` during instance boot, or to run `chef-client` after boot.
 
 Sourdough reads the **Environment** and **Runlist** EC2 tags and runs `chef-client` with those settings so you can update an instance's Chef settings just by tweaking its tags. This also lets you see what runlist and environment an instance has using just the AWS webui, so no more having to correlate Chef information for your instances in two places.
+
+# Testing
+
+## Pre-requisites
+
+You must have `docker` and `docker-compose` installed on your machine to run the test suite.
+
+## How to run the tests
+
+`make test` will build a container, then run the tests inside the container with `docker-compose`.
+
+**WARNING** only run the tests inside a disposable container - they _will_ **_destroy_** the chef installation on your machine.
 
 # FAQs
 

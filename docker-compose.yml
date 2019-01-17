@@ -1,0 +1,9 @@
+version: "3.2"
+
+services:
+  sourdough-test:
+    build: .
+    environment:
+      CHEF_CLIENT_RESULTS: ${CHEF_CLIENT_RESULTS:-/tmp/chef-client-results}
+    volumes:
+     - ".:/test"

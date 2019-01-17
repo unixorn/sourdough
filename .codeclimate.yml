@@ -1,0 +1,13 @@
+engines:
+  bandit:
+    enabled: true
+    checks:
+      assert_used:
+        enabled: false
+  sonar-python:
+    enabled: true
+    checks:
+      python:S1542:
+        enabled: false
+      python:PrintStatementUsage:
+        enabled: false

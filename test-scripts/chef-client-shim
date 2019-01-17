@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#
+# This is a shim script we use in the testing container to confirm that
+# sourdough has called chef-client with the expected arguments.
+#
+# Copyright 2018, Joe Block <jpb@unixorn.net>
+
+set -o pipefail
+
+RESULTS_D=$(dirname $CHEF_CLIENT_RESULTS)
+mkdir -p "$RESULTS_D"
+
+echo $* > "$CHEF_CLIENT_RESULTS"
+echo $*
