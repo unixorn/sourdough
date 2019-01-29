@@ -36,7 +36,7 @@ def system_call(command):
 
 
 name = 'sourdough'
-version = '0.9.0'
+version = '0.9.1'
 
 
 class CleanCommand(Command):
@@ -74,7 +74,9 @@ setup(
     "boto>=2.38.0",
     "haze>=0.0.13",
     "logrus>=0.0.2",
-    "pytoml>=0.1.11"
+    "pytoml>=0.1.11",
+    "pyvim>=2.0.24",
+    "pyvmomi>=6.7.1.2018.12"
   ],
   cmdclass={
     "clean": CleanCommand,
