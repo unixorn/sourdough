@@ -1,5 +1,9 @@
 # Sourdough
 
+## 0.9
+
+* Add VMware Tags support
+
 ## 0.7
 
 * Add ability to set the delay to wait for other converge runs

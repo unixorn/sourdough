@@ -1,0 +1,10 @@
+[vcenters]
+  [vcenters.server01]
+  hostname = "vcenter01"
+  user = "user_name01"
+  password = "Password_Vcenter01"
+
+  [vcenters.server02]
+  hostname = "vcenter02"
+  user = "user_name02"
+  password = "Password_Vcenter02"
