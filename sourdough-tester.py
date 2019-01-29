@@ -84,6 +84,10 @@ class TestSourdough(unittest.TestCase):
     self.assertEqual(systemCall('/usr/local/bin/chef-client foo bar').strip(), 'foo bar')
 
 
+  def test_inVMware(self):
+    self.assertEqual(sourdough.sourdough.inVMware(), False)
+
+  
   # Test internal functions
   def test_getAWSAccountID(self):
     self.assertEqual(sourdough.sourdough.getAWSAccountID(), '0')

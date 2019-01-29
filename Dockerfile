@@ -6,7 +6,7 @@ LABEL description="Sourdough test container"
 RUN apk add --no-cache bash
 
 # set up sourdough prerequisites
-RUN pip install --upgrade pip && pip install --upgrade boto haze logrus pytoml
+RUN pip install --upgrade pip && pip install --upgrade boto haze logrus pytoml pyvmomi
 
 RUN mkdir /test && mkdir -p /etc/sourdough && mkdir -p /etc/knobs && mkdir -p /etc/chef
 

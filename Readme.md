@@ -28,7 +28,7 @@
 
 Sourdough is a tool to install `chef-client` during instance boot, or to run `chef-client` after boot.
 
-Sourdough reads the **Environment** and **Runlist** EC2 tags and runs `chef-client` with those settings so you can update an instance's Chef settings just by tweaking its tags. This also lets you see what runlist and environment an instance has using just the AWS webui, so no more having to correlate Chef information for your instances in two places.
+Sourdough reads the **Environment** and **Runlist** EC2 / VMware tags and runs `chef-client` with those settings so you can update an instance's Chef settings just by tweaking its tags. This also lets you see what runlist and environment an instance has using just the AWS/VMware webui, so no more having to correlate Chef information for your instances in two places.
 
 # Testing
 
@@ -62,7 +62,7 @@ contents of that - if there's no knob file we use the output of
 
 ## How is the runlist determined?
 
-### EC2
+### EC2 / VMware
 
 The first thing we do is check for `/etc/knobs/Runlist`. If that's present, we set the runlist to the contents of that file.
 
@@ -75,3 +75,7 @@ Similarly to how it determines the Runlist, `sourdough` looks for `/etc/knobs/En
 ## How do I have sourdough pass environment variables to chef-client?
 
 `sourdough` will look for `/etc/sourdough/environment-variables.json`, and if present and valid JSON, will pass the variables inside to `chef-client` when it runs it.
+
+## VMware Vcenter configuration
+
+`sourdough` will look for `/etc/sourdough/vmware.toml`, and if present and valid toml, it will search the Private IP of VM in the Vcenters. Check the `example_vmware.toml` file for configuration details.

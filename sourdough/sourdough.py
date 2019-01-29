@@ -22,6 +22,8 @@ chef-client.
 import json
 import logging
 import os
+import socket
+import ssl
 import subprocess
 from subprocess import check_call
 import sys
@@ -30,6 +32,8 @@ import urllib2
 import boto.utils
 import haze.ec2
 import pytoml as toml
+from pyVim.connect import SmartConnect
+from pyVmomi import vim
 
 # this is a pointer to the module object instance itself. We'll attach
 # a logger to it later.
@@ -42,6 +46,7 @@ DEFAULT_NODE_PREFIX = 'chef_node'
 DEFAULT_REGION = 'undetermined-region'
 DEFAULT_RUNLIST = 'nucleus'
 DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
+DEFFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 
 
@@ -169,8 +174,45 @@ def readKnobOrTag(name, connection=None, knobDirectory='/etc/knobs'):
       return data
     except RuntimeError:
       return None
-  return None # No knobfile and we're either outside EC2 or no tag either
 
+  if inVMware:
+    try:
+      data = readVirtualMachineTag(name)
+      return data
+    except RuntimeError:
+      return None
+  return None # No knobfile and we're either outside EC2/VMware or no tag either
+
+def readVirtualMachineTag(tagName):
+    '''
+    Read Tags / Attributes from VM
+
+    :rtype: str
+    '''
+    secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+    secure.verify_mode=ssl.CERT_NONE
+    try:
+      with open(DEFFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
+        vcenters = toml.load(vmwareConfig)['vcenters']
+    except IOError as error:
+      return None
+
+    for k,v in vcenters.iteritems():
+      hostname = v.get('hostname')
+      username = v.get('user')
+      password = v.get('password')
+      si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
+      searcher = si.content.searchIndex
+      vm_ip = socket.gethostbyname(socket.gethostname())
+      vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
+      f = si.content.customFieldsManager.field
+      try:
+        for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
+          if k == tagName:
+            return v
+      except AttributeError as error:
+        return None
+    return None
 
 def loadHostname():
   '''
@@ -196,7 +238,7 @@ def loadSharedLogger():
 
 def readSetting(setting, fallback=None, tomlFile=DEFAULT_TOML_FILE, knobDirectory='/etc/knobs'):
   '''
-  Read a setting value from AWS tag, knob file, or sourdough.toml in
+  Read a setting value from AWS tag, VMware Tag/attribute, knob file, or sourdough.toml in
   that order, and return the fallback if we can't find another value.
 
   :param str setting: Which setting to search for
@@ -277,6 +319,21 @@ def inEC2():
     return False
   else:
     return True
+
+
+def inVMware():
+  '''
+  Detect if we're running in VMware.
+
+  Check the dmsg output if it matches VMware return True
+
+  :rtype: bool
+  '''
+  hypervisor = subprocess.check_output("dmesg | grep 'Hypervisor detected' | awk '{print $NF}'", shell=True).strip()
+  if hypervisor == 'VMware':
+    return True
+  else:
+    return False
 
 
 def generateNodeName():
