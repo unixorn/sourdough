@@ -1,5 +1,13 @@
 # Sourdough
 
+## 0.9.2
+
+* Update `getAWSAccountID` so it treats any exceptions as not being in EC2, not just `URLError` ones.
+
+## 0.9.1
+
+* Add new `pyvim` and `pyvmomi` dependencies introduced in 0.9 to `setup.py` so they are pulled in automatically by `pip`.
+
 ## 0.9
 
 * Add VMware Tags support

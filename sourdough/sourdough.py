@@ -137,7 +137,7 @@ def getAWSAccountID():
   link = "http://169.254.169.254/latest/dynamic/instance-identity/document"
   try:
     conn = urllib2.urlopen(url=link, timeout=5)
-  except urllib2.URLError:
+  except:
     return '0'
   jsonData = json.loads(conn.read())
   return jsonData['accountId']
