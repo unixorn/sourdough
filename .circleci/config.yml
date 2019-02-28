@@ -12,5 +12,5 @@ jobs:
           command: gem install awesome_bot
 
       - run:
-          name: Check README.md
-          command: awesome_bot README.md --allow-dupe --allow-redirect --white-list https://ipfs.io,slideshare,https://img.shields.io,https://codeclimate.com/github/unixorn/sourdough
+          name: Check Readme.md
+          command: awesome_bot Readme.md --allow-dupe --allow-redirect --white-list https://ipfs.io,slideshare,https://img.shields.io,https://codeclimate.com/github/unixorn/sourdough
