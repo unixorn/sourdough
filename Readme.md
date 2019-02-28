@@ -20,7 +20,7 @@
 # Sourdough
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Build Status](https://travis-ci.org/unixorn/sourdough.svg?branch=master)](https://travis-ci.org/unixorn/sourdough)
+[![CircleCI](https://circleci.com/gh/unixorn/sourdough.svg?style=shield)](https://circleci.com/gh/unixorn/sourdough)
 [![Code Climate](https://codeclimate.com/github/unixorn/sourdough/badges/gpa.svg)](https://codeclimate.com/github/unixorn/sourdough)
 [![Issue Count](https://codeclimate.com/github/unixorn/sourdough/badges/issue_count.svg)](https://codeclimate.com/github/unixorn/sourdough)
 [![GitHub stars](https://img.shields.io/github/stars/unixorn/sourdough.svg)](https://github.com/unixorn/git-extra-commands/stargazers)
