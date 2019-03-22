@@ -1,9 +1,13 @@
 # Sourdough
 
-## 0.9.3
+## 0.9.4
 
 * Fix attribute resolution in VMWare
 * Cache knobs and VMWare attributes
+
+## 0.9.3
+
+Missing change notes.
 
 ## 0.9.2
 
