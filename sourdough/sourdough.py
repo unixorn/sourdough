@@ -49,6 +49,8 @@ DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
 DEFFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 
+knobsCache = {}
+vmwareTags = {}
 
 def amRoot():
   '''
@@ -144,6 +146,13 @@ def getAWSAccountID():
 
 
 def readKnobOrTag(name, connection=None, knobDirectory='/etc/knobs'):
+  if name not in knobsCache:
+    knobValue = readKnobOrTagValue(name, connection, knobDirectory)
+    knobsCache[name] = knobValue
+
+  return knobsCache[name]
+
+def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
   '''
   Read a knob file or EC2 instance tag
 
@@ -189,30 +198,35 @@ def readVirtualMachineTag(tagName):
 
     :rtype: str
     '''
-    secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-    secure.verify_mode=ssl.CERT_NONE
-    try:
-      with open(DEFFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
-        vcenters = toml.load(vmwareConfig)['vcenters']
-    except IOError as error:
-      return None
+    vm_ip = socket.gethostbyname(socket.gethostname())
 
-    for k,v in vcenters.iteritems():
-      hostname = v.get('hostname')
-      username = v.get('user')
-      password = v.get('password')
-      si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
-      searcher = si.content.searchIndex
-      vm_ip = socket.gethostbyname(socket.gethostname())
-      vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
-      f = si.content.customFieldsManager.field
+    if vm_ip not in vmwareTags:
+      vmwareTags[vm_ip] = {}
+
+      secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+      secure.verify_mode=ssl.CERT_NONE
       try:
-        for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
-          if k == tagName:
-            return v
-      except AttributeError as error:
+        with open(DEFFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
+          vcenters = toml.load(vmwareConfig)['vcenters']
+      except IOError as error:
         return None
-    return None
+
+      for k,v in vcenters.iteritems():
+        hostname = v.get('hostname')
+        username = v.get('user')
+        password = v.get('password')
+        si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
+        searcher = si.content.searchIndex
+        vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
+        if vm:
+          f = si.content.customFieldsManager.field
+          for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
+            vmwareTags[vm_ip][k] = v
+
+    if tagName in vmwareTags[vm_ip]:
+      return vmwareTags[vm_ip][tagName]
+    else:
+      return None
 
 def loadHostname():
   '''
