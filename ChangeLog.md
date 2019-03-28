@@ -1,5 +1,9 @@
 # Sourdough
 
+## 0.9.5
+
+* Use correct IP address when searching for tags in VSphere
+
 ## 0.9.4
 
 * Fix attribute resolution in VMWare
