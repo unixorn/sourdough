@@ -227,13 +227,16 @@ def readVirtualMachineTag(tagName):
         hostname = v.get('hostname')
         username = v.get('user')
         password = v.get('password')
-        si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
-        searcher = si.content.searchIndex
-        vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
-        if vm:
-          f = si.content.customFieldsManager.field
-          for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
-            vmwareTags[vm_ip][k] = v
+        try:
+          si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
+          searcher = si.content.searchIndex
+          vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
+          if vm:
+            f = si.content.customFieldsManager.field
+            for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
+              vmwareTags[vm_ip][k] = v
+        except socket.error:
+          print 'Cannot connect to %s to read VMWare tags' % hostname
 
     if tagName in vmwareTags[vm_ip]:
       return vmwareTags[vm_ip][tagName]
