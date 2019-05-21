@@ -183,14 +183,8 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
   '''
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
-  # First, look for a knob file. If that exists, we don't care what the
-  # tags say.  This way we work in vagrant VMs or on bare metal.
-  data = readKnob(knobName=name, knobDirectory=knobDirectory)
-  if data:
-    return data
-
   if inEC2():
-    # No knob file, so check the tags
+    # Check the tags
     myIID = haze.ec2.myInstanceID()
 
     # We assume AWS credentials are in the environment or the instance is
@@ -201,17 +195,24 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
     try:
       print 'Reading instance tag %s for %s' % (myIID, name)
       data = haze.ec2.readInstanceTag(instanceID=myIID, tagName=name, connection=connection)
-      return data
+      if data:
+        writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
     except RuntimeError:
-      return None
+      data = readKnob(knobName=name, knobDirectory=knobDirectory)
+    return data
 
   if inVMware:
     try:
       data = readVirtualMachineTag(name)
-      return data
+      if data:
+        writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
     except RuntimeError:
-      return None
-  return None # No knobfile and we're either outside EC2/VMware or no tag either
+      data = readKnob(knobName=name, knobDirectory=knobDirectory)
+    return data
+
+  # Finally, look for a knob file. If that exists, we don't care what the
+  # tags say.  This way we work in vagrant VMs or on bare metal.
+  return readKnob(knobName=name, knobDirectory=knobDirectory)
 
 
 def get_ip():
