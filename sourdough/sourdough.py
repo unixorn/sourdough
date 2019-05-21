@@ -130,6 +130,26 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
     return None
 
 
+def writeKnob(name, value, knobDirectory='/etc/knobs'):
+  '''
+  Write to a knob file
+
+  :param str name: Which knob to write
+  :param str value: What value to write to the knobfile
+  '''
+  assert isinstance(knobDirectory, basestring), ("knobDirectory must be a string but is %r" % knobDirectory)
+  assert isinstance(name, basestring), ("name must be a string but is %r" % name)
+  assert isinstance(value, basestring), ("value must be a string but is %r" % value)
+
+  knobPath = "%s/%s" % (knobDirectory, name)
+  if not os.path.isdir(knobDirectory):
+    print 'directory %s does not exist, creating it' % knobDirectory
+    systemCall('mkdir -p %s' % knobDirectory)
+  with open(knobPath, 'w') as knobFile:
+    print 'Writing %s to %s' % (value, knobFile)
+    knobFile.write(value)
+
+
 def getAWSAccountID():
   '''
   Print an instance's AWS account number or 0 when not in EC2
