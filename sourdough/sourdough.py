@@ -130,6 +130,26 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
     return None
 
 
+def writeKnob(name, value, knobDirectory='/etc/knobs'):
+  '''
+  Write to a knob file
+
+  :param str name: Which knob to write
+  :param str value: What value to write to the knobfile
+  '''
+  assert isinstance(knobDirectory, basestring), ("knobDirectory must be a string but is %r" % knobDirectory)
+  assert isinstance(name, basestring), ("name must be a string but is %r" % name)
+  assert isinstance(value, basestring), ("value must be a string but is %r" % value)
+
+  knobPath = "%s/%s" % (knobDirectory, name)
+  if not os.path.isdir(knobDirectory):
+    print 'directory %s does not exist, creating it' % knobDirectory
+    systemCall('mkdir -p %s' % knobDirectory)
+  with open(knobPath, 'w') as knobFile:
+    print 'Writing %s to %s' % (value, knobFile)
+    knobFile.write(value)
+
+
 def getAWSAccountID():
   '''
   Print an instance's AWS account number or 0 when not in EC2
@@ -152,6 +172,7 @@ def readKnobOrTag(name, connection=None, knobDirectory='/etc/knobs'):
 
   return knobsCache[name]
 
+
 def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
   '''
   Read a knob file or EC2 instance tag
@@ -162,14 +183,8 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
   '''
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
-  # First, look for a knob file. If that exists, we don't care what the
-  # tags say.  This way we work in vagrant VMs or on bare metal.
-  data = readKnob(knobName=name, knobDirectory=knobDirectory)
-  if data:
-    return data
-
   if inEC2():
-    # No knob file, so check the tags
+    # Check the tags
     myIID = haze.ec2.myInstanceID()
 
     # We assume AWS credentials are in the environment or the instance is
@@ -180,29 +195,38 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
     try:
       print 'Reading instance tag %s for %s' % (myIID, name)
       data = haze.ec2.readInstanceTag(instanceID=myIID, tagName=name, connection=connection)
-      return data
+      if data:
+        writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
     except RuntimeError:
-      return None
+      data = readKnob(knobName=name, knobDirectory=knobDirectory)
+    return data
 
   if inVMware:
     try:
       data = readVirtualMachineTag(name)
-      return data
+      if data:
+        writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
     except RuntimeError:
-      return None
-  return None # No knobfile and we're either outside EC2/VMware or no tag either
+      data = readKnob(knobName=name, knobDirectory=knobDirectory)
+    return data
+
+  # Finally, look for a knob file. If that exists, we don't care what the
+  # tags say.  This way we work in vagrant VMs or on bare metal.
+  return readKnob(knobName=name, knobDirectory=knobDirectory)
+
 
 def get_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        # doesn't even have to be reachable
-        s.connect(('10.255.255.255', 1))
-        IP = s.getsockname()[0]
-    except:
-        IP = '127.0.0.1'
-    finally:
-        s.close()
-    return IP
+  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+  try:
+    # doesn't even have to be reachable
+    s.connect(('10.255.255.255', 1))
+    IP = s.getsockname()[0]
+  except:
+    IP = '127.0.0.1'
+  finally:
+    s.close()
+  return IP
+
 
 def readVirtualMachineTag(tagName):
     '''

@@ -1,5 +1,21 @@
 # Sourdough
 
+## 0.12.0
+
+Fixed version of 0.10.0
+
+Deal with bad behavior by VSphere/VMWare. We sometimes see our VSphere host reject connections, causing some chef runs to get the default runlist instead of the real one.
+
+To deal with this, when we are able to read tag data, we write the tag data to a knob file, so on future runs we can load from there if VSphere is having a tizzy.
+
+## 0.11.0
+
+Revert bad 0.10.0 version
+
+## 0.10.0
+
+Removed. Broke build due to bad testing.
+
 ## 0.9.5
 
 * Use correct IP address when searching for tags in VSphere
