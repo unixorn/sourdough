@@ -121,12 +121,14 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
 
   knobpath = "%s/%s" % (knobDirectory, knobName)
   if not os.path.isfile(knobpath):
+    print 'readknob: No such file: %s' % (knobpath)
     return None
   if os.access(knobpath, os.R_OK):
     with open(knobpath, 'r') as knobfile:
       data = ''.join(line.rstrip() for line in knobfile)
     return data
   else:
+    print 'readknob: Cannot read %s' % (knobpath)
     return None
 
 
@@ -184,30 +186,43 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
   if inEC2():
+    print 'readKnobOrTagValue: in EC2'
     # Check the tags
     myIID = haze.ec2.myInstanceID()
 
     # We assume AWS credentials are in the environment or the instance is
     # using an IAM role.
     if not connection:
-      print 'Connecting to region'
+      print 'readKnobOrTagValue: Connecting to region'
       connection = getEC2connection()
     try:
-      print 'Reading instance tag %s for %s' % (myIID, name)
+      print "readKnobOrTagValue: Reading instance tag %s for %s" % (myIID, name)
       data = haze.ec2.readInstanceTag(instanceID=myIID, tagName=name, connection=connection)
       if data:
         writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
+      else:
+        print "readKnobOrTagValue: Could not read %s EC2 instance tag, checking for knob file" % (name)
+        data = readKnob(knobName=name, knobDirectory=knobDirectory)
     except RuntimeError:
+      print "readKnobOrTagValue: Caught exception reading %s EC2 instance tag, checking for knob file" % (name)
       data = readKnob(knobName=name, knobDirectory=knobDirectory)
+    print "readKnobOrTag: tag %s = %s" % (name, data)
     return data
 
   if inVMware:
+    print 'readKnobOrTagValue: inVMware'
     try:
       data = readVirtualMachineTag(name)
       if data:
+        print "readKnobOrTagValue: writing VMware tag %s value %s to knob file" % (name, data)
         writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
+      else:
+        print "readKnobOrTagValue: Could not read %s virtual machine tag, checking for knob file" % (name)
+        data = readKnob(knobName=name, knobDirectory=knobDirectory)
     except RuntimeError:
+      print 'readKnobOrTagValue: could not read virtual machine tag, checking for knob file'
       data = readKnob(knobName=name, knobDirectory=knobDirectory)
+    print "readKnobOrTag: tag %s = %s" % (name, data)
     return data
 
   # Finally, look for a knob file. If that exists, we don't care what the
