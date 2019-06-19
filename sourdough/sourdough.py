@@ -52,6 +52,7 @@ DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 knobsCache = {}
 vmwareTags = {}
 
+
 def amRoot():
   '''
   Are we root?
@@ -281,6 +282,7 @@ def readVirtualMachineTag(tagName):
       return vmwareTags[vm_ip][tagName]
     else:
       return None
+
 
 def loadHostname():
   '''
