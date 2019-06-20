@@ -186,6 +186,8 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
   '''
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
+  data = None
+
   if inEC2():
     print 'readKnobOrTagValue: in EC2'
     # Check the tags
@@ -197,20 +199,14 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
       print 'readKnobOrTagValue: Connecting to region'
       connection = getEC2connection()
     try:
-      print "readKnobOrTagValue: Reading instance tag %s for %s" % (myIID, name)
+      print "readKnobOrTagValue: Reading %s instance tag on %s" % (name, myIID)
       data = haze.ec2.readInstanceTag(instanceID=myIID, tagName=name, connection=connection)
       if data:
         writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
-      else:
-        print "readKnobOrTagValue: Could not read %s EC2 instance tag, checking for knob file" % (name)
-        data = readKnob(knobName=name, knobDirectory=knobDirectory)
     except RuntimeError:
-      print "readKnobOrTagValue: Caught exception reading %s EC2 instance tag, checking for knob file" % (name)
-      data = readKnob(knobName=name, knobDirectory=knobDirectory)
-    print "readKnobOrTag: tag %s = %s" % (name, data)
-    return data
+      print "readKnobOrTagValue: Caught RuntimeError reading %s EC2 instance tag" % (name)
 
-  if inVMware:
+  if inVMware():
     print 'readKnobOrTagValue: inVMware'
     try:
       data = readVirtualMachineTag(name)
@@ -218,17 +214,21 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
         print "readKnobOrTagValue: writing VMware tag %s value %s to knob file" % (name, data)
         writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
       else:
-        print "readKnobOrTagValue: Could not read %s virtual machine tag, checking for knob file" % (name)
-        data = readKnob(knobName=name, knobDirectory=knobDirectory)
+        print "readKnobOrTagValue: Could not read %s virtual machine tag" % (name)
     except RuntimeError:
-      print 'readKnobOrTagValue: could not read virtual machine tag, checking for knob file'
-      data = readKnob(knobName=name, knobDirectory=knobDirectory)
-    print "readKnobOrTag: tag %s = %s" % (name, data)
-    return data
+      print 'readKnobOrTagValue: Caught RuntimeError reading virtual machine tag'
 
-  # Finally, look for a knob file. If that exists, we don't care what the
-  # tags say.  This way we work in vagrant VMs or on bare metal.
-  return readKnob(knobName=name, knobDirectory=knobDirectory)
+  if not data:
+    # Finally, look for a knob file if we couldn't read tag data.
+    # This way we work in vagrant VMs or on bare metal, and we cope if
+    # there is a temporary issue getting tags since we rewrite the knobs
+    # every time we successfully read tags.
+    print "readKnobOrTagValue: Couldn't load tag data, trying knob file read for %s" % (name)
+    data = readKnob(knobName=name, knobDirectory=knobDirectory)
+
+  print "readKnobOrTag: tag %s = %s" % (name, data)
+  return data
+
 
 
 def get_ip():
