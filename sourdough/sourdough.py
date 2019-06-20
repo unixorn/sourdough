@@ -149,7 +149,7 @@ def writeKnob(name, value, knobDirectory='/etc/knobs'):
     print 'directory %s does not exist, creating it' % knobDirectory
     systemCall('mkdir -p %s' % knobDirectory)
   with open(knobPath, 'w') as knobFile:
-    print 'Writing %s to %s' % (value, knobFile)
+    print 'writeKnob: Writing %s to %s' % (value, knobPath)
     knobFile.write(value)
 
 
