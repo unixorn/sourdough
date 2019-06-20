@@ -52,6 +52,7 @@ DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 knobsCache = {}
 vmwareTags = {}
 
+
 def amRoot():
   '''
   Are we root?
@@ -121,12 +122,14 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
 
   knobpath = "%s/%s" % (knobDirectory, knobName)
   if not os.path.isfile(knobpath):
+    print 'readknob: No such file: %s' % (knobpath)
     return None
   if os.access(knobpath, os.R_OK):
     with open(knobpath, 'r') as knobfile:
       data = ''.join(line.rstrip() for line in knobfile)
     return data
   else:
+    print 'readknob: Cannot read %s' % (knobpath)
     return None
 
 
@@ -146,7 +149,7 @@ def writeKnob(name, value, knobDirectory='/etc/knobs'):
     print 'directory %s does not exist, creating it' % knobDirectory
     systemCall('mkdir -p %s' % knobDirectory)
   with open(knobPath, 'w') as knobFile:
-    print 'Writing %s to %s' % (value, knobFile)
+    print 'writeKnob: Writing %s to %s' % (value, knobPath)
     knobFile.write(value)
 
 
@@ -183,36 +186,49 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
   '''
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
+  data = None
+
   if inEC2():
+    print 'readKnobOrTagValue: in EC2'
     # Check the tags
     myIID = haze.ec2.myInstanceID()
 
     # We assume AWS credentials are in the environment or the instance is
     # using an IAM role.
     if not connection:
-      print 'Connecting to region'
+      print 'readKnobOrTagValue: Connecting to region'
       connection = getEC2connection()
     try:
-      print 'Reading instance tag %s for %s' % (myIID, name)
+      print "readKnobOrTagValue: Reading %s instance tag on %s" % (name, myIID)
       data = haze.ec2.readInstanceTag(instanceID=myIID, tagName=name, connection=connection)
       if data:
         writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
     except RuntimeError:
-      data = readKnob(knobName=name, knobDirectory=knobDirectory)
-    return data
+      print "readKnobOrTagValue: Caught RuntimeError reading %s EC2 instance tag" % (name)
 
-  if inVMware:
+  if inVMware():
+    print 'readKnobOrTagValue: inVMware'
     try:
       data = readVirtualMachineTag(name)
       if data:
+        print "readKnobOrTagValue: writing VMware tag %s value %s to knob file" % (name, data)
         writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
+      else:
+        print "readKnobOrTagValue: Could not read %s virtual machine tag" % (name)
     except RuntimeError:
-      data = readKnob(knobName=name, knobDirectory=knobDirectory)
-    return data
+      print 'readKnobOrTagValue: Caught RuntimeError reading virtual machine tag'
 
-  # Finally, look for a knob file. If that exists, we don't care what the
-  # tags say.  This way we work in vagrant VMs or on bare metal.
-  return readKnob(knobName=name, knobDirectory=knobDirectory)
+  if not data:
+    # Finally, look for a knob file if we couldn't read tag data.
+    # This way we work in vagrant VMs or on bare metal, and we cope if
+    # there is a temporary issue getting tags since we rewrite the knobs
+    # every time we successfully read tags.
+    print "readKnobOrTagValue: Couldn't load tag data, trying knob file read for %s" % (name)
+    data = readKnob(knobName=name, knobDirectory=knobDirectory)
+
+  print "readKnobOrTag: tag %s = %s" % (name, data)
+  return data
+
 
 
 def get_ip():
@@ -266,6 +282,7 @@ def readVirtualMachineTag(tagName):
       return vmwareTags[vm_ip][tagName]
     else:
       return None
+
 
 def loadHostname():
   '''
@@ -378,16 +395,19 @@ def inVMware():
   '''
   Detect if we're running in VMware.
 
-  Check the dmsg output if it matches VMware return True
+  Check ohai output - key hostnamectl.virtualization tells us what hypervisor we're on.
 
   :rtype: bool
   '''
-  hypervisor = subprocess.check_output("dmesg | grep 'Hypervisor detected' | awk '{print $NF}'", shell=True).strip()
-  if hypervisor == 'VMware':
-    return True
-  else:
+  try:
+    hypervisor = subprocess.check_output("ohai | jq '.hostnamectl.virtualization' | grep -c vmware", shell=True).strip()
+    if hypervisor == '1':
+      return True
+    else:
+      return False
+  except subprocess.CalledProcessError:
+    # grep exits 1 when it can't find the search string
     return False
-
 
 def generateNodeName():
   '''
