@@ -395,16 +395,19 @@ def inVMware():
   '''
   Detect if we're running in VMware.
 
-  Check the dmsg output if it matches VMware return True
+  Check ohai output - key hostnamectl.virtualization tells us what hypervisor we're on.
 
   :rtype: bool
   '''
-  hypervisor = subprocess.check_output("dmesg | grep 'Hypervisor detected' | awk '{print $NF}'", shell=True).strip()
-  if hypervisor == 'VMware':
-    return True
-  else:
+  try:
+    hypervisor = subprocess.check_output("ohai | jq '.hostnamectl.virtualization' | grep -c vmware", shell=True).strip()
+    if hypervisor == '1':
+      return True
+    else:
+      return False
+  except subprocess.CalledProcessError:
+    # grep exits 1 when it can't find the search string
     return False
-
 
 def generateNodeName():
   '''
