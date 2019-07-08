@@ -244,44 +244,45 @@ def get_ip():
 
 
 def readVirtualMachineTag(tagName):
-    '''
-    Read Tags / Attributes from VM
+  '''
+  Read Tags / Attributes from VM
 
-    :rtype: str
-    '''
-    vm_ip = get_ip()
+  :rtype: str
+  '''
+  vm_ip = get_ip()
 
-    if vm_ip not in vmwareTags:
-      vmwareTags[vm_ip] = {}
+  if vm_ip not in vmwareTags:
+    vmwareTags[vm_ip] = {}
 
-      secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-      secure.verify_mode=ssl.CERT_NONE
-      try:
-        with open(DEFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
-          vcenters = toml.load(vmwareConfig)['vcenters']
-      except IOError as error:
-        print "Could not open %s" % DEFAULT_VMWARE_CONFIG
-        return None
-
-      for k,v in vcenters.iteritems():
-        hostname = v.get('hostname')
-        username = v.get('user')
-        password = v.get('password')
-        try:
-          si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
-          searcher = si.content.searchIndex
-          vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
-          if vm:
-            f = si.content.customFieldsManager.field
-            for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
-              vmwareTags[vm_ip][k] = v
-        except socket.error:
-          print 'Cannot connect to %s to read VMWare tags' % hostname
-
-    if tagName in vmwareTags[vm_ip]:
-      return vmwareTags[vm_ip][tagName]
-    else:
+    secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+    secure.verify_mode=ssl.CERT_NONE
+    try:
+      with open(DEFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
+        vcenters = toml.load(vmwareConfig)['vcenters']
+    except IOError as error:
+      print "Could not open %s" % DEFAULT_VMWARE_CONFIG
       return None
+
+    for k,v in vcenters.iteritems():
+      hostname = v.get('hostname')
+      username = v.get('user')
+      password = v.get('password')
+      try:
+        si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
+        searcher = si.content.searchIndex
+        vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
+        if vm:
+          f = si.content.customFieldsManager.field
+          for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
+            vmwareTags[vm_ip][k] = v
+
+      except socket.error:
+        print 'Cannot connect to %s to read VMWare tags' % hostname
+
+  if tagName in vmwareTags[vm_ip]:
+    return vmwareTags[vm_ip][tagName]
+  else:
+    return None
 
 
 def loadHostname():
