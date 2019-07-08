@@ -46,7 +46,7 @@ DEFAULT_NODE_PREFIX = 'chef_node'
 DEFAULT_REGION = 'undetermined-region'
 DEFAULT_RUNLIST = 'nucleus'
 DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
-DEFFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
+DEFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 
 knobsCache = {}
@@ -230,7 +230,6 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
   return data
 
 
-
 def get_ip():
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   try:
@@ -258,9 +257,10 @@ def readVirtualMachineTag(tagName):
       secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
       secure.verify_mode=ssl.CERT_NONE
       try:
-        with open(DEFFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
+        with open(DEFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
           vcenters = toml.load(vmwareConfig)['vcenters']
       except IOError as error:
+        print "Could not open %s" % DEFAULT_VMWARE_CONFIG
         return None
 
       for k,v in vcenters.iteritems():
