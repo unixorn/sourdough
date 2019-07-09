@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2017-2018 Joe Block <jpb@unixorn.net>
+# Copyright 2017-2019 Joe Block <jpb@unixorn.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 # limitations under the License.
 
 '''
-Read configuration parameters from instance EC2 tags, then run
+Read configuration parameters from instance EC2 or vSphere tags, then run
 chef-client.
 '''
 
@@ -35,7 +35,7 @@ import pytoml as toml
 from pyVim.connect import SmartConnect
 from pyVmomi import vim
 
-# this is a pointer to the module object instance itself. We'll attach
+# This is a pointer to the module object instance itself. We'll attach
 # a logger to it later.
 this = sys.modules[__name__]
 
@@ -48,7 +48,7 @@ DEFAULT_REGION = 'undetermined-region'
 DEFAULT_RUNLIST = 'nucleus'
 DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
 DEFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
-DEFAULT_VSPHERE_KNOB = '/etc/knobs/vsphere_host'
+DEFAULT_VSPHERE_KNOB = '/etc/knobs/vsphere_host.toml'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 
 knobsCache = {}
@@ -88,6 +88,7 @@ def getCustomLogger(name):
   Set up logging
 
   :param str name: What log level to set
+  :rtype Logger object
   '''
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
@@ -174,10 +175,16 @@ def getAWSAccountID():
 
 
 def readKnobOrTag(name, connection=None, knobDirectory='/etc/knobs'):
+  '''
+  Read tag/knob data from the kobsCache if present, set the cache if not.
+
+  :param str name: Name of the tag we want to load
+  :param str knobDirectory: What directory to search for knob files
+  :rtype: str
+  '''
   if name not in knobsCache:
     knobValue = readKnobOrTagValue(name, connection, knobDirectory)
     knobsCache[name] = knobValue
-
   return knobsCache[name]
 
 
@@ -248,11 +255,66 @@ def get_ip():
   return IP
 
 
-def readVirtualMachineTag(tagName):
+def loadVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNOB_DIRECTORY):
   '''
-  Read Tags / Attributes from VM
+  Load cached vSphere settings. If there's no cache, use detectVSphereHost
+  to create one.
 
-  :rtype: str
+  :param str knobName: What file name to write the vsphere data to
+  :param str knobDirectory: What directory to write the knob file in
+  :rtype dict:
+  '''
+  assert isinstance(knobDirectory, basestring), ("knobDirectory must be a string but is %r" % knobDirectory)
+  assert isinstance(knobName, basestring), ("knobName must be a string but is %r" % knobName)
+
+  fpath = "%s/%s" % (knobDirectory, knobName)
+  if os.path.isfile(fpath):
+    print "loadVSphereSettings: Reading cached vsphere data from %s" % fpath
+    with open(fpath, 'r') as vmwareConfig:
+      vsphereSettings = toml.load(vmwareConfig)
+      return vsphereSettings['vcenter']
+  else:
+    print "loadVSphereSettings: No vsphere cache file at %s" % fpath
+    return detectVSphereHost()
+
+
+def writeVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNOB_DIRECTORY, hostname=None, user=None, password=None):
+  '''
+  Write the vsphere host information to a knob file so we don't have to determine it
+  every single time we read a tag.
+
+  :param str knobName: What file name to write the vsphere data to
+  :param str knobDirectory: What directory to write the knob file in
+  :param str hostname: hostname of the vSphere host
+  :param str user: username to connect to vSphere
+  :param str password: password to connect to vSphere
+  '''
+  assert isinstance(hostname, basestring), ("hostname must be a string but is %r" % hostname)
+  assert isinstance(knobDirectory, basestring), ("knobDirectory must be a string but is %r" % knobDirectory)
+  assert isinstance(knobName, basestring), ("knobName must be a string but is %r" % knobName)
+  assert isinstance(password, basestring), ("password must be a string but is %r" % password)
+  assert isinstance(user, basestring), ("user must be a string but is %r" % user)
+
+  knobPath = "%s/%s" % (knobDirectory, knobName)
+  if not os.path.isdir(knobDirectory):
+    print "writeVsphereSettings: directory %s does not exist, creating it" % knobDirectory
+    systemCall('mkdir -p %s' % knobDirectory)
+
+  with open(knobPath, 'w') as knobFile:
+    print "writeVsphereSettings: Writing %s to %s" % (value, knobPath)
+    knobFile.write('[vcenter]')
+    knobFile.write("hostname = %s" % hostname)
+    knobFile.write("user = %s" % user)
+    knobFile.write("password = %s" % password)
+
+
+def detectVSphereHost():
+  '''
+  Determine which vsphere host to use, then write it to cache.
+
+  Returns the settings information.
+
+  :rtype dict:
   '''
   vm_ip = get_ip()
 
@@ -277,12 +339,49 @@ def readVirtualMachineTag(tagName):
         searcher = si.content.searchIndex
         vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
         if vm:
-          f = si.content.customFieldsManager.field
-          for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
-            vmwareTags[vm_ip][k] = v
-
+          writeVsphereSettings(hostname=hostname, user=user, password=password)
+          settings = {}
+          settings['hostname'] = hostname
+          settings['password'] = password
+          settings['user'] = user
+          return settings
       except socket.error:
         print 'Cannot connect to %s to read VMWare tags' % hostname
+
+
+def readVirtualMachineTag(tagName):
+  '''
+  Read Tags / Attributes from VM
+
+  :param str tagName: tag to read
+  :rtype: str
+  '''
+  vm_ip = get_ip()
+
+  if vm_ip not in vmwareTags:
+    vmwareTags[vm_ip] = {}
+
+    secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+    secure.verify_mode=ssl.CERT_NONE
+
+    vSphereSettings = loadVSphereSettings()
+    hostname = vSphereSettings['hostname']
+    password = vSphereSettings['password']
+    user = vSphereSettings['user']
+
+    print "readVirtualMachineTag: hostname=%s user=%s password=%s" % (hostname, user, password)
+
+    try:
+      si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
+      searcher = si.content.searchIndex
+      vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
+      if vm:
+        f = si.content.customFieldsManager.field
+        for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
+          vmwareTags[vm_ip][k] = v
+
+    except socket.error:
+      print 'Cannot connect to %s to read VMWare tags' % hostname
 
   if tagName in vmwareTags[vm_ip]:
     return vmwareTags[vm_ip][tagName]
