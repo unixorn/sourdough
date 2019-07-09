@@ -48,7 +48,7 @@ DEFAULT_REGION = 'undetermined-region'
 DEFAULT_RUNLIST = 'nucleus'
 DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
 DEFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
-DEFAULT_VSPHERE_KNOB = '/etc/knobs/vsphere_host.toml'
+DEFAULT_VSPHERE_KNOB = 'vsphere_host.toml'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 
 knobsCache = {}
@@ -96,7 +96,8 @@ def getCustomLogger(name):
 
   logLevel = readKnob('logLevel')
   if not logLevel:
-    logLevel = 'INFO'
+    # logLevel = 'INFO'
+    logLevel = 'DEBUG'
 
   # If they don't specify a valid log level, err on the side of verbosity
   if logLevel.upper() not in validLogLevels:
@@ -278,16 +279,18 @@ def loadVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNO
   loadSharedLogger()
   fpath = "%s/%s" % (knobDirectory, knobName)
   if os.path.isfile(fpath):
-    this.logger.debug('loadVSphereSettings: Reading cached vsphere data from %s', fpath)
+    this.logger.debug('Reading cached vsphere data from %s', fpath)
     with open(fpath, 'r') as vmwareConfig:
       vsphereSettings = toml.load(vmwareConfig)
       return vsphereSettings['vcenter']
   else:
-    this.logger.info('loadVSphereSettings: No vsphere cache file at %s', fpath)
-    return detectVSphereHost()
+    this.logger.info('No vsphere cache file at %s', fpath)
+    hypervisor = detectVSphereHost()
+    this.logger.debug('hypervisor: %r', hypervisor)
+    return hypervisor
 
 
-def writeVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNOB_DIRECTORY, hostname=None, user=None, password=None):
+def writeVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNOB_DIRECTORY, hostname=None, username=None, password=None):
   '''
   Write the vsphere host information to a knob file so we don't have to determine it
   every single time we read a tag.
@@ -302,7 +305,7 @@ def writeVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KN
   assert isinstance(knobDirectory, basestring), ("knobDirectory must be a string but is %r" % knobDirectory)
   assert isinstance(knobName, basestring), ("knobName must be a string but is %r" % knobName)
   assert isinstance(password, basestring), ("password must be a string but is %r" % password)
-  assert isinstance(user, basestring), ("user must be a string but is %r" % user)
+  assert isinstance(username, basestring), ("username must be a string but is %r" % username)
 
   loadSharedLogger()
   knobPath = "%s/%s" % (knobDirectory, knobName)
@@ -315,10 +318,11 @@ def writeVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KN
     knobFile.write('[vcenter]')
     knobFile.write("hostname = %s" % hostname)
     this.logger.debug('hostname = %s', hostname)
-    knobFile.write("user = %s" % user)
-    this.logger.debug('user = %s', user)
+    knobFile.write("username = %s" % username)
+    this.logger.debug('username = %s', user)
     knobFile.write("password = %s" % password)
     this.logger.debug('password = %s', password)
+
 
 def detectVSphereHost():
   '''
@@ -331,36 +335,43 @@ def detectVSphereHost():
   loadSharedLogger()
   vm_ip = get_ip()
 
+  this.logger.debug('Trying to find a vsphere host')
+  this.logger.debug('vmwareTags: %r', vmwareTags)
+  this.logger.debug('vm_ip:%s', vm_ip)
   if vm_ip not in vmwareTags:
     vmwareTags[vm_ip] = {}
 
-    secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-    secure.verify_mode=ssl.CERT_NONE
-    try:
-      with open(DEFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
-        vcenters = toml.load(vmwareConfig)['vcenters']
-    except IOError as error:
-      this.logger.error('Could not open %s', DEFAULT_VMWARE_CONFIG)
-      return None
+  this.logger.debug('vmwareTags: %r', vmwareTags)
 
-    for k,v in vcenters.iteritems():
-      hostname = v.get('hostname')
-      username = v.get('user')
-      password = v.get('password')
-      try:
-        si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
-        searcher = si.content.searchIndex
-        vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
-        if vm:
-          writeVsphereSettings(hostname=hostname, user=user, password=password)
-          settings = {}
-          settings['hostname'] = hostname
-          settings['password'] = password
-          settings['user'] = user
-          this.logger.debug('settings: %r', settings)
-          return settings
-      except socket.error:
-        this.logger.info('Cannot connect to %s to read VMWare tags', hostname)
+  secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+  secure.verify_mode=ssl.CERT_NONE
+
+  this.logger.debug('Set secure.verify_mode to ssl.CERT_NONE')
+
+  try:
+    with open(DEFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
+      vcenters = toml.load(vmwareConfig)['vcenters']
+  except IOError as error:
+    this.logger.error('Could not open %s', DEFAULT_VMWARE_CONFIG)
+    return None
+
+  this.logger.debug('vcenters: %r', vcenters)
+  for k,v in vcenters.iteritems():
+    hostname = v.get('hostname')
+    username = v.get('user')
+    password = v.get('password')
+    this.logger.debug('trying hostname:%s username:%s password:%s',  hostname, username, password)
+    try:
+      si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
+      settings = {}
+      settings['hostname'] = hostname
+      settings['password'] = password
+      settings['username'] = username
+      this.logger.debug('Was able to connect to vSphere hypervisor %s with settings: %r', hostname, settings)
+      writeVsphereSettings(hostname=hostname, username=username, password=password)
+      return settings
+    except socket.error:
+      this.logger.info('Cannot connect to vSphere hypervisor %s', hostname)
 
 
 def readVirtualMachineTag(tagName):
@@ -371,6 +382,15 @@ def readVirtualMachineTag(tagName):
   :rtype: str
   '''
   vm_ip = get_ip()
+  loadSharedLogger()
+
+  # Check the tag cache first to avoid unnecessary vSphere interactions
+  if vm_ip in vmwareTags:
+    if tagName in vmwareTags[vm_ip]:
+      this.logger.debug('Cache hit for %s', tagName)
+      return vmwareTags[vm_ip][tagName]
+    else:
+      this.logger.debug('Cache fail for %s, beginning tag load', tagName)
 
   if vm_ip not in vmwareTags:
     vmwareTags[vm_ip] = {}
@@ -379,27 +399,35 @@ def readVirtualMachineTag(tagName):
     secure.verify_mode=ssl.CERT_NONE
 
     vSphereSettings = loadVSphereSettings()
+    this.logger.debug('vSphereSettings: %r', vSphereSettings)
+
     hostname = vSphereSettings['hostname']
     password = vSphereSettings['password']
-    user = vSphereSettings['user']
+    username = vSphereSettings['username']
 
-    this.logger.debug('hostname=%s user=%s password=%s', hostname, user, password)
+    this.logger.debug('hostname=%s user=%s password=%s', hostname, username, password)
 
     try:
       si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
+      this.logger.debug('Post SmartConnect')
       searcher = si.content.searchIndex
+      this.logger.debug('Searching for VM for %s', vm_ip)
       vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
       if vm:
+        this.logger.debug('Found VM object for %s, loading tags', vm_ip)
         f = si.content.customFieldsManager.field
         for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
           vmwareTags[vm_ip][k] = v
-
+      else:
+        this.logger.error('Could not find a vSphere VM record for %s', vm_ip)
     except socket.error:
-      this.logger.info('Cannot connect to %s to read VMWare tags', hostname)
+      this.logger.info('Cannot connect to vSphere host %s to read VMWare tags', hostname)
 
   if tagName in vmwareTags[vm_ip]:
+    this.logger.debug('Found tag %s in cache', tagName)
     return vmwareTags[vm_ip][tagName]
   else:
+    this.logger.debug('Could not load tag %s from cache', tagName)
     return None
 
 
@@ -635,6 +663,25 @@ def isDisabled():
   return False
 
 
+def isDebugging():
+  '''
+  Detect if sourdough is being debugged.
+
+  rtype: bool
+  '''
+  loadSharedLogger()
+  logger = this.logger
+  logger.debug('Checking for DEBUG switch')
+  debugFile = "/etc/sourdough/debug-sourdough"
+  logger.debug("  Checking for %s", debugFile)
+  if os.path.isfile(debugFile):
+      logger.debug("  %s found", debugFile)
+      logger.critical('sourdough in DEBUG mode')
+      return True
+  logger.debug('Debug switch not found')
+  return False
+
+
 def generateClientConfiguration(nodeName=None,
                                 validationClientName=None,
                                 chefOrganization=None,
@@ -861,6 +908,10 @@ def runner(connection=None):
     chefCommand = chefCommand + ['--environment', environment]
 
   logger.debug("chefCommand: %s", chefCommand)
+  if isDebugging():
+    logger.critical('Skipping chef-client, sourdough is in DEBUG mode')
+    sys.exit(1)
+
   check_call(chefCommand, env=clientEnvVars)
 
 
