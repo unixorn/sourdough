@@ -42,11 +42,13 @@ this = sys.modules[__name__]
 # Set some module constants
 CHEF_D = '/etc/chef'
 DEFAULT_ENVIRONMENT = '_default'
+DEFAULT_KNOB_DIRECTORY = '/etc/knobs'
 DEFAULT_NODE_PREFIX = 'chef_node'
 DEFAULT_REGION = 'undetermined-region'
 DEFAULT_RUNLIST = 'nucleus'
 DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
 DEFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
+DEFAULT_VSPHERE_KNOB = '/etc/knobs/vsphere_host'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 
 knobsCache = {}
@@ -148,9 +150,12 @@ def writeKnob(name, value, knobDirectory='/etc/knobs'):
   if not os.path.isdir(knobDirectory):
     print 'directory %s does not exist, creating it' % knobDirectory
     systemCall('mkdir -p %s' % knobDirectory)
-  with open(knobPath, 'w') as knobFile:
-    print 'writeKnob: Writing %s to %s' % (value, knobPath)
-    knobFile.write(value)
+  if value is not None:
+    with open(knobPath, 'w') as knobFile:
+      print "writeKnob: Writing %s to %s" % (value, knobPath)
+      knobFile.write(value)
+  else:
+    print "writeKnob: %s has a value of %s, skipping write" % (name, value)
 
 
 def getAWSAccountID():
