@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2017-2018 Joe Block <jpb@unixorn.net>
+# Copyright 2017-2019 Joe Block <jpb@unixorn.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 # limitations under the License.
 
 '''
-Read configuration parameters from instance EC2 tags, then run
+Read configuration parameters from instance EC2 or vSphere tags, then run
 chef-client.
 '''
 
@@ -35,18 +35,20 @@ import pytoml as toml
 from pyVim.connect import SmartConnect
 from pyVmomi import vim
 
-# this is a pointer to the module object instance itself. We'll attach
+# This is a pointer to the module object instance itself. We'll attach
 # a logger to it later.
 this = sys.modules[__name__]
 
 # Set some module constants
 CHEF_D = '/etc/chef'
 DEFAULT_ENVIRONMENT = '_default'
+DEFAULT_KNOB_DIRECTORY = '/etc/knobs'
 DEFAULT_NODE_PREFIX = 'chef_node'
 DEFAULT_REGION = 'undetermined-region'
 DEFAULT_RUNLIST = 'nucleus'
 DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
-DEFFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
+DEFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
+DEFAULT_VSPHERE_KNOB = 'vsphere_host.toml'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 
 knobsCache = {}
@@ -86,12 +88,13 @@ def getCustomLogger(name):
   Set up logging
 
   :param str name: What log level to set
+  :rtype Logger object
   '''
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
   validLogLevels = ['CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'WARNING']
 
-  logLevel = readKnobOrTag('logLevel')
+  logLevel = readKnob('logLevel')
   if not logLevel:
     logLevel = 'INFO'
 
@@ -144,13 +147,17 @@ def writeKnob(name, value, knobDirectory='/etc/knobs'):
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
   assert isinstance(value, basestring), ("value must be a string but is %r" % value)
 
+  loadSharedLogger()
   knobPath = "%s/%s" % (knobDirectory, name)
   if not os.path.isdir(knobDirectory):
-    print 'directory %s does not exist, creating it' % knobDirectory
+    this.logger('directory %s does not exist, creating it', knobDirectory)
     systemCall('mkdir -p %s' % knobDirectory)
-  with open(knobPath, 'w') as knobFile:
-    print 'writeKnob: Writing %s to %s' % (value, knobPath)
-    knobFile.write(value)
+  if value is not None:
+    with open(knobPath, 'w') as knobFile:
+      this.logger.info('Writing %s to %s', value, knobPath)
+      knobFile.write(value)
+  else:
+    this.logger.debug('%s has a value of %s, skipping write', name, value)
 
 
 def getAWSAccountID():
@@ -169,10 +176,16 @@ def getAWSAccountID():
 
 
 def readKnobOrTag(name, connection=None, knobDirectory='/etc/knobs'):
+  '''
+  Read tag/knob data from the knobsCache if present, set the cache if not.
+
+  :param str name: Name of the tag we want to load
+  :param str knobDirectory: What directory to search for knob files
+  :rtype: str
+  '''
   if name not in knobsCache:
     knobValue = readKnobOrTagValue(name, connection, knobDirectory)
     knobsCache[name] = knobValue
-
   return knobsCache[name]
 
 
@@ -187,51 +200,56 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
   assert isinstance(name, basestring), ("name must be a string but is %r" % name)
 
   data = None
+  loadSharedLogger()
 
   if inEC2():
-    print 'readKnobOrTagValue: in EC2'
+    this.logger.debug('in EC2')
     # Check the tags
     myIID = haze.ec2.myInstanceID()
 
     # We assume AWS credentials are in the environment or the instance is
     # using an IAM role.
     if not connection:
-      print 'readKnobOrTagValue: Connecting to region'
+      this.logger.info('Connecting to region')
       connection = getEC2connection()
     try:
-      print "readKnobOrTagValue: Reading %s instance tag on %s" % (name, myIID)
+      this.logger.info('Reading %s instance tag on %s', name, myIID)
       data = haze.ec2.readInstanceTag(instanceID=myIID, tagName=name, connection=connection)
       if data:
         writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
     except RuntimeError:
-      print "readKnobOrTagValue: Caught RuntimeError reading %s EC2 instance tag" % (name)
+      this.logger.error('Caught RuntimeError reading %s EC2 instance tag', name)
 
   if inVMware():
-    print 'readKnobOrTagValue: inVMware'
+    this.logger.info('inVMware')
     try:
       data = readVirtualMachineTag(name)
       if data:
-        print "readKnobOrTagValue: writing VMware tag %s value %s to knob file" % (name, data)
+        this.logger.debug('readKnobOrTagValue: writing VMware tag %s value %s to knob file', name, data)
         writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
       else:
-        print "readKnobOrTagValue: Could not read %s virtual machine tag" % (name)
+        this.logger.error('readKnobOrTagValue: Could not read %s virtual machine tag', name)
     except RuntimeError:
-      print 'readKnobOrTagValue: Caught RuntimeError reading virtual machine tag'
+      this.logger.error('readKnobOrTagValue: Caught RuntimeError reading virtual machine tag')
 
   if not data:
     # Finally, look for a knob file if we couldn't read tag data.
     # This way we work in vagrant VMs or on bare metal, and we cope if
     # there is a temporary issue getting tags since we rewrite the knobs
     # every time we successfully read tags.
-    print "readKnobOrTagValue: Couldn't load tag data, trying knob file read for %s" % (name)
+    this.logger.info('readKnobOrTagValue: Cannot load tag data, trying knob file read for %s', name)
     data = readKnob(knobName=name, knobDirectory=knobDirectory)
 
-  print "readKnobOrTag: tag %s = %s" % (name, data)
+  this.logger.debug('readKnobOrTag: tag %s = %s', name, data)
   return data
 
 
+def getIP():
+  '''
+  Determine our IP
 
-def get_ip():
+  :rtype str:
+  '''
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   try:
     # doesn't even have to be reachable
@@ -244,44 +262,174 @@ def get_ip():
   return IP
 
 
+def loadVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNOB_DIRECTORY):
+  '''
+  Load cached vSphere settings. If there's no cache, use detectVSphereHost
+  to create one.
+
+  :param str knobName: What file name to write the vsphere data to
+  :param str knobDirectory: What directory to write the knob file in
+
+  :rtype dict:
+  '''
+  assert isinstance(knobDirectory, basestring), ("knobDirectory must be a string but is %r" % knobDirectory)
+  assert isinstance(knobName, basestring), ("knobName must be a string but is %r" % knobName)
+
+  loadSharedLogger()
+  fpath = "%s/%s" % (knobDirectory, knobName)
+  if os.path.isfile(fpath):
+    this.logger.debug('Reading cached vSphere data from %s', fpath)
+    try:
+      with open(fpath, 'r') as vmwareConfig:
+        vsphereSettings = toml.load(vmwareConfig)
+        this.logger.debug('Loaded vSphere connection info: %r', vsphereSettings)
+        return vsphereSettings
+    except RuntimeError:
+      this.logger.critical('Error loading %s - is the toml valid?', fpath)
+  else:
+    this.logger.info('No vSphere cache file at %s', fpath)
+
+  this.logger.warning('Failed to load vSphere settings from cache file, searching for hypervisor.')
+  hypervisor = detectVSphereHost()
+  this.logger.debug('hypervisor: %r', hypervisor)
+  return hypervisor
+
+
+def writeVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNOB_DIRECTORY, hostname=None, username=None, password=None):
+  '''
+  Write the vsphere host information to a knob file so we don't have to determine it
+  every single time we read a tag.
+
+  :param str knobName: What file name to write the vsphere data to
+  :param str knobDirectory: What directory to write the knob file in
+  :param str hostname: hostname of the vSphere host
+  :param str user: username to connect to vSphere
+  :param str password: password to connect to vSphere
+  '''
+  assert isinstance(hostname, basestring), ("hostname must be a string but is %r" % hostname)
+  assert isinstance(knobDirectory, basestring), ("knobDirectory must be a string but is %r" % knobDirectory)
+  assert isinstance(knobName, basestring), ("knobName must be a string but is %r" % knobName)
+  assert isinstance(password, basestring), ("password must be a string but is %r" % password)
+  assert isinstance(username, basestring), ("username must be a string but is %r" % username)
+
+  loadSharedLogger()
+  knobPath = "%s/%s" % (knobDirectory, knobName)
+  if not os.path.isdir(knobDirectory):
+    this.logger.info('writeVsphereSettings: directory %s does not exist, creating it', knobDirectory)
+    systemCall('mkdir -p %s' % knobDirectory)
+
+  with open(knobPath, 'w') as knobFile:
+    this.logger.info('Writing vSphere connection info to %s', knobPath)
+    settings = {}
+    settings['hostname'] = hostname
+    settings['username'] = username
+    settings['password'] = password
+    knobFile.write(toml.dumps(settings))
+
+
+def detectVSphereHost():
+  '''
+  Determine which vsphere host to use, then write it to cache.
+
+  Returns the settings information.
+
+  :rtype dict:
+  '''
+  loadSharedLogger()
+  vm_ip = getIP()
+
+  this.logger.debug('Trying to find a vsphere host')
+  this.logger.debug('vmwareTags: %r', vmwareTags)
+  this.logger.debug('vm_ip:%s', vm_ip)
+  if vm_ip not in vmwareTags:
+    vmwareTags['VM_IP'] = vm_ip
+
+  this.logger.debug('vmwareTags: %r', vmwareTags)
+
+  secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+  secure.verify_mode=ssl.CERT_NONE
+
+  this.logger.debug('Set secure.verify_mode to ssl.CERT_NONE')
+
+  try:
+    with open(DEFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
+      vcenters = toml.load(vmwareConfig)['vcenters']
+  except IOError as error:
+    this.logger.error('Could not open %s', DEFAULT_VMWARE_CONFIG)
+    return None
+
+  this.logger.debug('vcenters: %r', vcenters)
+  for k,v in vcenters.iteritems():
+    hostname = v.get('hostname')
+    username = v.get('user')
+    password = v.get('password')
+    this.logger.debug('trying hostname:%s username:%s password:%s',  hostname, username, password)
+    try:
+      si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
+      settings = {}
+      settings['hostname'] = hostname
+      settings['password'] = password
+      settings['username'] = username
+      this.logger.debug('Was able to connect to vSphere hypervisor %s with settings: %r', hostname, settings)
+      writeVSphereSettings(hostname=hostname, username=username, password=password)
+      return settings
+    except socket.error:
+      this.logger.info('Cannot connect to vSphere hypervisor %s', hostname)
+
+
 def readVirtualMachineTag(tagName):
-    '''
-    Read Tags / Attributes from VM
+  '''
+  Read Tags / Attributes from VM by UUID
 
-    :rtype: str
-    '''
-    vm_ip = get_ip()
+  :param str tagName: tag to read
+  :rtype: str
+  '''
+  uuid = getUUID()
+  loadSharedLogger()
 
-    if vm_ip not in vmwareTags:
-      vmwareTags[vm_ip] = {}
+  # Check the tag cache first to avoid unnecessary vSphere interactions
+  if tagName in vmwareTags:
+    this.logger.debug('Cache hit for %s: %s', tagName, vmwareTags[tagName])
+    return vmwareTags[tagName]
+  else:
+    this.logger.debug('Cache fail for %s, beginning vSphere tag load', tagName)
+    secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+    secure.verify_mode=ssl.CERT_NONE
 
-      secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-      secure.verify_mode=ssl.CERT_NONE
-      try:
-        with open(DEFFAULT_VMWARE_CONFIG, 'r') as vmwareConfig:
-          vcenters = toml.load(vmwareConfig)['vcenters']
-      except IOError as error:
-        return None
+    this.logger.debug('secure.verify_mode=ssl.CERT_NONE')
 
-      for k,v in vcenters.iteritems():
-        hostname = v.get('hostname')
-        username = v.get('user')
-        password = v.get('password')
-        try:
-          si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
-          searcher = si.content.searchIndex
-          vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
-          if vm:
-            f = si.content.customFieldsManager.field
-            for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
-              vmwareTags[vm_ip][k] = v
-        except socket.error:
-          print 'Cannot connect to %s to read VMWare tags' % hostname
+    vSphereSettings = loadVSphereSettings()
+    this.logger.debug('vSphereSettings: %r', vSphereSettings)
 
-    if tagName in vmwareTags[vm_ip]:
-      return vmwareTags[vm_ip][tagName]
-    else:
-      return None
+    hostname = vSphereSettings['hostname']
+    password = vSphereSettings['password']
+    username = vSphereSettings['username']
+
+    this.logger.debug('hostname=%s user=%s password=%s', hostname, username, password)
+
+    try:
+      si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
+      this.logger.debug('SmartConnect succeeded')
+      searcher = si.content.searchIndex
+      this.logger.debug('Searching for VM for UUID %s', uuid)
+      vm = searcher.FindByUuid(uuid=uuid, vmSearch=True)
+      if vm:
+        this.logger.debug('Found VM object for UUID %s, loading tags', uuid)
+        f = si.content.customFieldsManager.field
+        for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
+          vmwareTags[k] = v
+          this.logger.debug('Caching tag:%s=%s', k, v)
+      else:
+        this.logger.error('Could not find a vSphere VM record for %s', uuid)
+    except socket.error:
+      this.logger.info('Cannot connect to vSphere host %s to read VMWare tags', hostname)
+
+  if tagName in vmwareTags:
+    this.logger.debug('Found tag %s in cache', tagName)
+    return vmwareTags[tagName]
+  else:
+    this.logger.debug('Could not load tag %s from cache', tagName)
+    return None
 
 
 def loadHostname():
@@ -295,8 +443,20 @@ def loadHostname():
   if not hostname:
     this.logger.debug('No hostname tag or knob, falling back to hostname command output')
     hostname = systemCall('hostname').strip()
-  this.logger.debug("hostname: %s", hostname)
+  this.logger.debug('hostname: %s', hostname)
   return hostname
+
+
+def getUUID():
+  '''
+  Get the UUID of this VM
+
+  :rtype: str
+  '''
+  loadSharedLogger()
+  uuid = systemCall("dmidecode | awk '/UUID/ {print $2}'").strip()
+  this.logger.info('VM UUID: %s', uuid)
+  return uuid
 
 
 def loadSharedLogger():
@@ -409,6 +569,7 @@ def inVMware():
     # grep exits 1 when it can't find the search string
     return False
 
+
 def generateNodeName():
   '''
   Determine what the machine's Chef node name should be.
@@ -513,6 +674,25 @@ def isDisabled():
       logger.critical('Chef converge disabled')
       return True
   logger.info('Disable switch not found')
+  return False
+
+
+def isDebugging():
+  '''
+  Detect if sourdough is being debugged.
+
+  rtype: bool
+  '''
+  loadSharedLogger()
+  logger = this.logger
+  logger.debug('Checking for DEBUG switch')
+  debugFile = "/etc/sourdough/debug-sourdough"
+  logger.debug("  Checking for %s", debugFile)
+  if os.path.isfile(debugFile):
+      logger.debug("  %s found", debugFile)
+      logger.critical('sourdough in DEBUG mode')
+      return True
+  logger.debug('Debug switch not found')
   return False
 
 
@@ -742,6 +922,10 @@ def runner(connection=None):
     chefCommand = chefCommand + ['--environment', environment]
 
   logger.debug("chefCommand: %s", chefCommand)
+  if isDebugging():
+    logger.critical('Skipping chef-client, sourdough is in DEBUG mode')
+    sys.exit(1)
+
   check_call(chefCommand, env=clientEnvVars)
 
 
