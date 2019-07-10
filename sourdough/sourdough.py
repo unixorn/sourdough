@@ -178,7 +178,7 @@ def getAWSAccountID():
 
 def readKnobOrTag(name, connection=None, knobDirectory='/etc/knobs'):
   '''
-  Read tag/knob data from the kobsCache if present, set the cache if not.
+  Read tag/knob data from the knobsCache if present, set the cache if not.
 
   :param str name: Name of the tag we want to load
   :param str knobDirectory: What directory to search for knob files
@@ -245,7 +245,7 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
   return data
 
 
-def get_ip():
+def getIP():
   '''
   Determine our IP
 
@@ -337,7 +337,7 @@ def detectVSphereHost():
   :rtype dict:
   '''
   loadSharedLogger()
-  vm_ip = get_ip()
+  vm_ip = getIP()
 
   this.logger.debug('Trying to find a vsphere host')
   this.logger.debug('vmwareTags: %r', vmwareTags)
