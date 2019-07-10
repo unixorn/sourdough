@@ -96,8 +96,7 @@ def getCustomLogger(name):
 
   logLevel = readKnob('logLevel')
   if not logLevel:
-    # logLevel = 'INFO'
-    logLevel = 'DEBUG'
+    logLevel = 'INFO'
 
   # If they don't specify a valid log level, err on the side of verbosity
   if logLevel.upper() not in validLogLevels:
