@@ -1,5 +1,17 @@
 # Sourdough
 
+## 0.12.2
+
+### Working around more vSphere shenanigans
+
+* Switched from using IP address to UUID when looking up tag data. We were using the VM's IP address as the key when requesting tag information. This turned out to be a bad idea because if the machine has several IPs, the one `getIP()` picked wasn't necessarily the one vSphere was using as the main key, so you wouldn't always be able to get the tag data from vSphere when searching by IP, which sucks.
+* For efficiency, we now check the `vmwareTags` dict to see if we've already read a tag value  _before_ reading all the tags from the hypervisor. We also load all available tags into the cache whenever we scan for a tag that isn't already cached.
+* Added `detectVSphereHost()`, `loadVSphereSettings()` and `writeVSphereSettings()` so we don't retry connecting to all the vSphere hosts listed in `vmware.toml` every time we read a tag, with the associated delays waiting for timeouts trying to connect to unreachable hypervisors. Now we store that information in a knob file so future `sourdough` runs won't have to grovel through the entire hypervisor list.
+* Added a debugging flag file, `/etc/sourdough/debug-sourdough`.  When the flag is present, `sourdough` won't actually start `chef-client` so you can debug vSphere issues faster.
+* Renamed `get_ip()` to `getIP()` for naming consistency
+* Converted a lot of crappy `print` statements to proper `logger` usage
+* Updated and created a bunch of missing/crappy docstrings
+
 ## 0.12.0
 
 Fixed version of 0.10.0
