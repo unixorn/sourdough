@@ -280,15 +280,20 @@ def loadVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNO
   fpath = "%s/%s" % (knobDirectory, knobName)
   if os.path.isfile(fpath):
     this.logger.debug('Reading cached vsphere data from %s', fpath)
-    with open(fpath, 'r') as vmwareConfig:
-      vsphereSettings = toml.load(vmwareConfig)
-      this.logger.debug('vSphere connection info: %r', vSphereSettings)
-      return vsphereSettings['vcenter']
+    try:
+      with open(fpath, 'r') as vmwareConfig:
+        vsphereSettings = toml.load(vmwareConfig)
+        this.logger.debug('Loaded vSphere connection info: %r', vsphereSettings)
+        return vsphereSettings
+    except RuntimeError:
+      this.logger.critical('Error loading %s - is the toml valid?', fpath)
   else:
-    this.logger.info('No vsphere cache file at %s', fpath)
-    hypervisor = detectVSphereHost()
-    this.logger.debug('hypervisor: %r', hypervisor)
-    return hypervisor
+    this.logger.info('No vSphere cache file at %s', fpath)
+
+  this.logger.warning('Failed to load vSphere settings from cache file, searching for hypervisor.')
+  hypervisor = detectVSphereHost()
+  this.logger.debug('hypervisor: %r', hypervisor)
+  return hypervisor
 
 
 def writeVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNOB_DIRECTORY, hostname=None, username=None, password=None):
@@ -316,13 +321,11 @@ def writeVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KN
 
   with open(knobPath, 'w') as knobFile:
     this.logger.info('Writing vSphere connection info to %s', knobPath)
-    knobFile.write("[vcenter]\n")
-    knobFile.write("hostname = %s\n" % hostname)
-    this.logger.debug('hostname = %s', hostname)
-    knobFile.write("username = %s\n" % username)
-    this.logger.debug('username = %s', username)
-    knobFile.write("password = %s\n" % password)
-    this.logger.debug('password = %s', password)
+    settings = {}
+    settings['hostname'] = hostname
+    settings['username'] = username
+    settings['password'] = password
+    knobFile.write(toml.dumps(settings))
 
 
 def detectVSphereHost():
