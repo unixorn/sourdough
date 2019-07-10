@@ -282,6 +282,7 @@ def loadVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNO
     this.logger.debug('Reading cached vsphere data from %s', fpath)
     with open(fpath, 'r') as vmwareConfig:
       vsphereSettings = toml.load(vmwareConfig)
+      this.logger.debug('vSphere connection info: %r', vSphereSettings)
       return vsphereSettings['vcenter']
   else:
     this.logger.info('No vsphere cache file at %s', fpath)
@@ -315,12 +316,12 @@ def writeVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KN
 
   with open(knobPath, 'w') as knobFile:
     this.logger.info('Writing vSphere connection info to %s', knobPath)
-    knobFile.write('[vcenter]')
-    knobFile.write("hostname = %s" % hostname)
+    knobFile.write("[vcenter]\n")
+    knobFile.write("hostname = %s\n" % hostname)
     this.logger.debug('hostname = %s', hostname)
-    knobFile.write("username = %s" % username)
-    this.logger.debug('username = %s', user)
-    knobFile.write("password = %s" % password)
+    knobFile.write("username = %s\n" % username)
+    this.logger.debug('username = %s', username)
+    knobFile.write("password = %s\n" % password)
     this.logger.debug('password = %s', password)
 
 
@@ -339,7 +340,7 @@ def detectVSphereHost():
   this.logger.debug('vmwareTags: %r', vmwareTags)
   this.logger.debug('vm_ip:%s', vm_ip)
   if vm_ip not in vmwareTags:
-    vmwareTags[vm_ip] = {}
+    vmwareTags['VM_IP'] = vm_ip
 
   this.logger.debug('vmwareTags: %r', vmwareTags)
 
@@ -368,7 +369,7 @@ def detectVSphereHost():
       settings['password'] = password
       settings['username'] = username
       this.logger.debug('Was able to connect to vSphere hypervisor %s with settings: %r', hostname, settings)
-      writeVsphereSettings(hostname=hostname, username=username, password=password)
+      writeVSphereSettings(hostname=hostname, username=username, password=password)
       return settings
     except socket.error:
       this.logger.info('Cannot connect to vSphere hypervisor %s', hostname)
@@ -376,27 +377,24 @@ def detectVSphereHost():
 
 def readVirtualMachineTag(tagName):
   '''
-  Read Tags / Attributes from VM
+  Read Tags / Attributes from VM by UUID
 
   :param str tagName: tag to read
   :rtype: str
   '''
-  vm_ip = get_ip()
+  uuid = getUUID()
   loadSharedLogger()
 
   # Check the tag cache first to avoid unnecessary vSphere interactions
-  if vm_ip in vmwareTags:
-    if tagName in vmwareTags[vm_ip]:
-      this.logger.debug('Cache hit for %s', tagName)
-      return vmwareTags[vm_ip][tagName]
-    else:
-      this.logger.debug('Cache fail for %s, beginning tag load', tagName)
-
-  if vm_ip not in vmwareTags:
-    vmwareTags[vm_ip] = {}
-
+  if tagName in vmwareTags:
+    this.logger.debug('Cache hit for %s: %s', tagName, vmwareTags[tagName])
+    return vmwareTags[tagName]
+  else:
+    this.logger.debug('Cache fail for %s, beginning vSphere tag load', tagName)
     secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
     secure.verify_mode=ssl.CERT_NONE
+
+    this.logger.debug('secure.verify_mode=ssl.CERT_NONE')
 
     vSphereSettings = loadVSphereSettings()
     this.logger.debug('vSphereSettings: %r', vSphereSettings)
@@ -409,23 +407,25 @@ def readVirtualMachineTag(tagName):
 
     try:
       si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
-      this.logger.debug('Post SmartConnect')
+      this.logger.debug('SmartConnect succeeded')
       searcher = si.content.searchIndex
-      this.logger.debug('Searching for VM for %s', vm_ip)
-      vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
+      this.logger.debug('Searching for VM for %s', uuid)
+      # vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
+      vm = searcher.FindByUuid(uuid=uuid, vmSearch=True)
       if vm:
-        this.logger.debug('Found VM object for %s, loading tags', vm_ip)
+        this.logger.debug('Found VM object for %s, loading tags', uuid)
         f = si.content.customFieldsManager.field
         for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
-          vmwareTags[vm_ip][k] = v
+          vmwareTags[k] = v
+          this.logger.debug('Found tag:%s=%s', k, v)
       else:
-        this.logger.error('Could not find a vSphere VM record for %s', vm_ip)
+        this.logger.error('Could not find a vSphere VM record for %s', uuid)
     except socket.error:
       this.logger.info('Cannot connect to vSphere host %s to read VMWare tags', hostname)
 
-  if tagName in vmwareTags[vm_ip]:
+  if tagName in vmwareTags:
     this.logger.debug('Found tag %s in cache', tagName)
-    return vmwareTags[vm_ip][tagName]
+    return vmwareTags[tagName]
   else:
     this.logger.debug('Could not load tag %s from cache', tagName)
     return None
@@ -444,6 +444,18 @@ def loadHostname():
     hostname = systemCall('hostname').strip()
   this.logger.debug('hostname: %s', hostname)
   return hostname
+
+
+def getUUID():
+  '''
+  Get the UUID of this VM
+
+  :rtype: str
+  '''
+  loadSharedLogger()
+  uuid = systemCall("dmidecode | awk '/UUID/ {print $2}'").strip()
+  this.logger.info('VM UUID: %s', uuid)
+  return uuid
 
 
 def loadSharedLogger():
