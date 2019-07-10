@@ -279,7 +279,7 @@ def loadVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNO
   loadSharedLogger()
   fpath = "%s/%s" % (knobDirectory, knobName)
   if os.path.isfile(fpath):
-    this.logger.debug('Reading cached vsphere data from %s', fpath)
+    this.logger.debug('Reading cached vSphere data from %s', fpath)
     try:
       with open(fpath, 'r') as vmwareConfig:
         vsphereSettings = toml.load(vmwareConfig)
@@ -412,15 +412,14 @@ def readVirtualMachineTag(tagName):
       si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
       this.logger.debug('SmartConnect succeeded')
       searcher = si.content.searchIndex
-      this.logger.debug('Searching for VM for %s', uuid)
-      # vm = searcher.FindByIp(ip=vm_ip, vmSearch=True)
+      this.logger.debug('Searching for VM for UUID %s', uuid)
       vm = searcher.FindByUuid(uuid=uuid, vmSearch=True)
       if vm:
-        this.logger.debug('Found VM object for %s, loading tags', uuid)
+        this.logger.debug('Found VM object for UUID %s, loading tags', uuid)
         f = si.content.customFieldsManager.field
         for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
           vmwareTags[k] = v
-          this.logger.debug('Found tag:%s=%s', k, v)
+          this.logger.debug('Caching tag:%s=%s', k, v)
       else:
         this.logger.error('Could not find a vSphere VM record for %s', uuid)
     except socket.error:
@@ -570,6 +569,7 @@ def inVMware():
   except subprocess.CalledProcessError:
     # grep exits 1 when it can't find the search string
     return False
+
 
 def generateNodeName():
   '''
