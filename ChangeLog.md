@@ -1,5 +1,12 @@
 # Sourdough
 
+## 0.12.3
+
+### Yet another vSphere cleanup
+
+* Fix error when no valid vSphere configuration toml file can be found.
+* Add disfeature flag file (`/etc/sourdough/disable-vsphere`) to disable vSphere entirely when we know we're not going to be able to reach the vSphere server (don't ask).
+
 ## 0.12.2
 
 ### Working around more vSphere shenanigans

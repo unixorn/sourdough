@@ -64,18 +64,16 @@ contents of that - if there's no knob file we use the output of
 
 ### EC2 / VMware
 
-The first thing we do is check for `/etc/knobs/Runlist`. If that's present, we set the runlist to the contents of that file.
-
-If there is no `/etc/knobs/Runlist` file, we read the instance's **Runlist** tag and set the runlist to that, and if there is no Runlist tag we look for a **default_runlist** entry in `/etc/sourdough/sourdough.toml`
+First we attempt to read the instance's **Runlist** tag and set the runlist to that. If we can't reach AWS/vSphere to read a tag, we search for `/etc/knobs/Runlist` and use the contents of that. If we still haven't found a **Runlist** setting we look for a **default_runlist** entry in `/etc/sourdough/sourdough.toml`. Once we determine a Runlist, we write it to `/etc/knobs/Runlist` to use as a fallback on future runs.
 
 ## What Chef environment does Sourdough use
 
-Similarly to how it determines the Runlist, `sourdough` looks for `/etc/knobs/Environment` and if that is missing, the **Environment** tag for the instance, and if that is missing, looks for a **default_environment** entry in `/etc/sourdough/sourdough.toml`
+Similarly to how it determines the Runlist, `sourdough` looks for an **Environment** tag for the instance, and if that is missing, looks for `/etc/knobs/Environment`, and finally falls back to looking for a **default_environment** entry in `/etc/sourdough/sourdough.toml`
 
 ## How do I have sourdough pass environment variables to chef-client?
 
-`sourdough` will look for `/etc/sourdough/environment-variables.json`, and if present and valid JSON, will pass the variables inside to `chef-client` when it runs it.
+`sourdough` will look for `/etc/sourdough/environment-variables.json`, and if present and _valid JSON_, will pass the variables inside to `chef-client` when it runs it.
 
 ## VMware Vcenter configuration
 
-`sourdough` will look for `/etc/sourdough/vmware.toml`, and if present and valid toml, it will search the Private IP of VM in the Vcenters. Check the `example_vmware.toml` file for configuration details.
+`sourdough` will look for `/etc/sourdough/vmware.toml`, and if present and _valid toml_, it will search for the UUID of the VM in the vSphere host(s) listed there. Check the `example_vmware.toml` file for configuration details.
