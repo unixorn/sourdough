@@ -50,6 +50,7 @@ DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
 DEFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
 DEFAULT_VSPHERE_KNOB = 'vsphere_host.toml'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
+DISABLE_VSPHERE = '/etc/sourdough/disable-vsphere'
 
 knobsCache = {}
 vmwareTags = {}
@@ -216,6 +217,7 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
       this.logger.info('Reading %s instance tag on %s', name, myIID)
       data = haze.ec2.readInstanceTag(instanceID=myIID, tagName=name, connection=connection)
       if data:
+        this.logger.debug('Caching EC2 tag %s value %s in knob file', name, data)
         writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
     except RuntimeError:
       this.logger.error('Caught RuntimeError reading %s EC2 instance tag', name)
@@ -225,22 +227,22 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
     try:
       data = readVirtualMachineTag(name)
       if data:
-        this.logger.debug('readKnobOrTagValue: writing VMware tag %s value %s to knob file', name, data)
+        this.logger.debug('Caching VMware tag %s value %s in knob file', name, data)
         writeKnob(name=name, value=data, knobDirectory='/etc/knobs')
       else:
-        this.logger.error('readKnobOrTagValue: Could not read %s virtual machine tag', name)
+        this.logger.error('Could not read %s virtual machine tag', name)
     except RuntimeError:
-      this.logger.error('readKnobOrTagValue: Caught RuntimeError reading virtual machine tag')
+      this.logger.error('Caught RuntimeError reading virtual machine tag')
 
   if not data:
     # Finally, look for a knob file if we couldn't read tag data.
     # This way we work in vagrant VMs or on bare metal, and we cope if
     # there is a temporary issue getting tags since we rewrite the knobs
     # every time we successfully read tags.
-    this.logger.info('readKnobOrTagValue: Cannot load tag data, trying knob file read for %s', name)
+    this.logger.info('Cannot load tag data for %s, attempting load from knob file cache', name)
     data = readKnob(knobName=name, knobDirectory=knobDirectory)
 
-  this.logger.debug('readKnobOrTag: tag %s = %s', name, data)
+  this.logger.debug('tag %s = %s', name, data)
   return data
 
 
@@ -339,12 +341,10 @@ def detectVSphereHost():
   vm_ip = getIP()
 
   this.logger.debug('Trying to find a vsphere host')
-  this.logger.debug('vmwareTags: %r', vmwareTags)
+  this.logger.debug('Cached vmwareTags: %r', vmwareTags)
   this.logger.debug('vm_ip:%s', vm_ip)
   if vm_ip not in vmwareTags:
     vmwareTags['VM_IP'] = vm_ip
-
-  this.logger.debug('vmwareTags: %r', vmwareTags)
 
   secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
   secure.verify_mode=ssl.CERT_NONE
@@ -363,7 +363,7 @@ def detectVSphereHost():
     hostname = v.get('hostname')
     username = v.get('user')
     password = v.get('password')
-    this.logger.debug('trying hostname:%s username:%s password:%s',  hostname, username, password)
+    this.logger.debug('Trying hostname:%s username:%s password:%s',  hostname, username, password)
     try:
       si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
       settings = {}
@@ -393,17 +393,27 @@ def readVirtualMachineTag(tagName):
     return vmwareTags[tagName]
   else:
     this.logger.debug('Cache fail for %s, beginning vSphere tag load', tagName)
+    if os.path.isfile(DISABLE_VSPHERE):
+      this.logger.warning('Found %s, skipping vSphere reads', DISABLE_VSPHERE)
+      return None
     secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
     secure.verify_mode=ssl.CERT_NONE
 
     this.logger.debug('secure.verify_mode=ssl.CERT_NONE')
 
     vSphereSettings = loadVSphereSettings()
+    if not vSphereSettings:
+      this.logger.error('Could not load vSphereSettings!')
+      return None
     this.logger.debug('vSphereSettings: %r', vSphereSettings)
 
-    hostname = vSphereSettings['hostname']
-    password = vSphereSettings['password']
-    username = vSphereSettings['username']
+    try:
+      hostname = vSphereSettings['hostname']
+      password = vSphereSettings['password']
+      username = vSphereSettings['username']
+    except KeyError:
+      this.logger.critical('Failed to load all parameters from cached vSphereSettings toml file')
+      return None
 
     this.logger.debug('hostname=%s user=%s password=%s', hostname, username, password)
 
