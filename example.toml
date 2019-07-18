@@ -7,5 +7,8 @@ validation_pubkey = "/etc/OmniConsumerProducts/credentials/chef/OmniConsumerProd
 default_runlist = "ocp_base"
 chef_server = "https://api.chef.io/organizations"
 
+# connection_wait must be a number
+connection_wait = 15
+
 # converge_wait = maximum number of seconds to wait for another chef run to complete
 converge_wait = 900

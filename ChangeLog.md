@@ -6,6 +6,7 @@
 
 * Fix error when no valid vSphere configuration toml file can be found.
 * Add disfeature flag file (`/etc/sourdough/disable-vsphere`) to disable vSphere entirely when we know we're not going to be able to reach the vSphere server (don't ask).
+* Add ability to set network connection timeout with `connection_wait` in `/etc/sourdough/sourdough.toml` to cope with slow vSphere servers.
 
 ## 0.12.2
 

@@ -41,6 +41,7 @@ this = sys.modules[__name__]
 
 # Set some module constants
 CHEF_D = '/etc/chef'
+DEFAULT_CONNECTION_TIMEOUT=15
 DEFAULT_ENVIRONMENT = '_default'
 DEFAULT_KNOB_DIRECTORY = '/etc/knobs'
 DEFAULT_NODE_PREFIX = 'chef_node'
@@ -95,7 +96,7 @@ def getCustomLogger(name):
 
   validLogLevels = ['CRITICAL', 'DEBUG', 'ERROR', 'INFO', 'WARNING']
 
-  logLevel = readKnob('logLevel')
+  logLevel = readKnob('LogLevel')
   if not logLevel:
     logLevel = 'INFO'
 
@@ -505,6 +506,29 @@ def readSetting(setting, fallback=None, tomlFile=DEFAULT_TOML_FILE, knobDirector
   return v
 
 
+def getConnectionWait():
+  '''
+  How long should we wait for network connections?
+
+  :rtype: int
+  '''
+  return readSetting(setting='connection_wait', fallback=DEFAULT_CONNECTION_TIMEOUT)
+
+
+def setConnectionWait():
+  '''
+  Set network connection timeout
+  '''
+  loadSharedLogger()
+  logger = this.logger
+  try:
+    connectionWait = getConnectionWait()
+    this.logger.debug('Setting socket.setdefaulttimeout to %r', connectionWait)
+    socket.setdefaulttimeout(connectionWait)
+  except TypeError:
+    this.logger.error('Could not set socket.setdefaulttimeout to %r', connectionWait)
+
+
 def getConvergeWait():
   '''
   How long should we wait for another chef-client converge run to finish?
@@ -792,6 +816,8 @@ def infect(connection=None):
 
   logger.info('Assimilating instance into Chef')
 
+  setConnectionWait()
+
   if inEC2():
     # Assume AWS credentials are in the environment or the instance is using an IAM role
     if not connection:
@@ -900,6 +926,8 @@ def runner(connection=None):
 
   if isDisabled():
     sys.exit(1)
+
+  setConnectionWait()
 
   if inEC2():
     # Assume AWS credentials are in the environment or the instance is using an IAM role
