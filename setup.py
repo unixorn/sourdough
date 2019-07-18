@@ -36,7 +36,7 @@ def system_call(command):
 
 
 name = 'sourdough'
-version = '0.12.2'
+version = '0.12.3'
 
 
 class CleanCommand(Command):
