@@ -36,7 +36,7 @@ def system_call(command):
 
 
 name = 'sourdough'
-version = '0.12.3'
+version = '0.12.4'
 
 
 class CleanCommand(Command):
@@ -97,6 +97,8 @@ setup(
       "sourdough = %s.cli.commands:sourdoughDriver" % name,
       "sourdough-bootstrap = %s.sourdough:infect" % name,
       "sourdough-deregister = %s.sourdough:deregisterFromChef" % name,
+      "sourdough-disable-chef = %s.sourdough:disableChefRuns" % name,
+      "sourdough-enable-chef = %s.sourdough:enableChefRuns" % name,
       "sourdough-runner = %s.sourdough:runner" % name,
       "sourdough-starter = %s.sourdough:runner" % name
     ]

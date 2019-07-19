@@ -19,6 +19,7 @@ Read configuration parameters from instance EC2 or vSphere tags, then run
 chef-client.
 '''
 
+import datetime
 import json
 import logging
 import os
@@ -990,6 +991,33 @@ def deregisterFromChef():
     if os.path.isfile("/etc/chef/%s" % chefFile):
       this.logger.info("  Scrubbing %s", chefFile)
       os.remove("/etc/chef/%s" % chefFile)
+
+
+def enableChefRuns():
+  '''
+  Remove the toggle file that disables Chef runs if it is present
+  '''
+  disableFile = "/etc/sourdough/Disable-Sourdough"
+
+  if not amRoot():
+    raise RuntimeError, 'This must be run as root'
+
+  if os.path.isfile(disableFile):
+    print "Removing %s" % disableFile
+    os.remove(disableFile)
+
+def disableChefRuns():
+  '''
+  Create the toggle file that disables Chef runs
+  '''
+  disableFile = "/etc/sourdough/Disable-Sourdough"
+
+  if not amRoot():
+    raise RuntimeError, 'This must be run as root'
+
+  with open(disableFile, 'w') as disabler:
+    print "Creating %s" % disableFile
+    disabler.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 
 if __name__ == '__main__':
