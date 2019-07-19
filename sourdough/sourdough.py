@@ -1006,6 +1006,7 @@ def enableChefRuns():
     print "Removing %s" % disableFile
     os.remove(disableFile)
 
+
 def disableChefRuns():
   '''
   Create the toggle file that disables Chef runs
@@ -1018,6 +1019,34 @@ def disableChefRuns():
   with open(disableFile, 'w') as disabler:
     print "Creating %s" % disableFile
     disabler.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+
+def enableDebugMode():
+  '''
+  Remove the toggle file that enables Debug mode
+  '''
+  debugFile = "/etc/sourdough/debug-sourdough"
+
+  if not amRoot():
+    raise RuntimeError, 'This must be run as root'
+
+  with open(debugFile, 'w') as disabler:
+    print "Creating %s" % debugFile
+    disabler.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+
+def disableDebugMode():
+  '''
+  Create the toggle file that enables debugging mode
+  '''
+  debugFile = "/etc/sourdough/debug-sourdough"
+
+  if not amRoot():
+    raise RuntimeError, 'This must be run as root'
+
+  if os.path.isfile(debugFile):
+    print "Removing %s" % debugFile
+    os.remove(debugFile)
 
 
 if __name__ == '__main__':

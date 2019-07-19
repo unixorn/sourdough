@@ -99,6 +99,8 @@ setup(
       "sourdough-deregister = %s.sourdough:deregisterFromChef" % name,
       "sourdough-disable-chef = %s.sourdough:disableChefRuns" % name,
       "sourdough-enable-chef = %s.sourdough:enableChefRuns" % name,
+      "sourdough-disable-debugging = %s.sourdough:disableDebugMode" % name,
+      "sourdough-enable-debugging = %s.sourdough:enableDebugMode" % name,
       "sourdough-runner = %s.sourdough:runner" % name,
       "sourdough-starter = %s.sourdough:runner" % name
     ]
