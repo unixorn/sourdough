@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2017 Joe Block <jpb@unixorn.net>
+# Copyright 2017-2019 Joe Block <jpb@unixorn.net>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ from logrus.cli import findSubCommand, isProgram
 
 
 def sourdoughDriver():
-  """
+  '''
   Process the command line arguments and run the appropriate sourdough subcommand.
 
   We want to be able to do git-style handoffs to subcommands where if we
@@ -37,7 +37,7 @@ def sourdoughDriver():
   We deliberately don't do anything with the arguments other than hand
   them off to the sourdough subcommand. Subcommands are responsible for their
   own argument parsing.
-  """
+  '''
   try:
     (command, args) = findSubCommand(sys.argv)
 

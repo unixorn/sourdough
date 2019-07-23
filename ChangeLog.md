@@ -1,5 +1,9 @@
 # Sourdough
 
+## 0.12.4
+
+Added `sourdough-enable-chef`, `sourdough-disable-chef`, `sourdough-enable-debugging` and `sourdough-disable-debugging` convenience commands.
+
 ## 0.12.3
 
 ### Yet another vSphere cleanup
