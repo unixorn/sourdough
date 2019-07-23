@@ -52,7 +52,9 @@ DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
 DEFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
 DEFAULT_VSPHERE_KNOB = 'vsphere_host.toml'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
+DISABLE_SOURDOUGH_F = "/etc/sourdough/Disable-Sourdough"
 DISABLE_VSPHERE = '/etc/sourdough/disable-vsphere'
+ENABLE_SOURDOUGH_DEBUGGING_F = "/etc/sourdough/debug-sourdough"
 
 knobsCache = {}
 vmwareTags = {}
@@ -702,10 +704,9 @@ def isDisabled():
   loadSharedLogger()
   logger = this.logger
   logger.info('Checking for disable switch')
-  disableFile = "/etc/sourdough/Disable-Sourdough"
-  logger.debug("  Checking for %s", disableFile)
-  if os.path.isfile(disableFile):
-      logger.debug("  %s found", disableFile)
+  logger.debug("  Checking for %s", DISABLE_SOURDOUGH_F)
+  if os.path.isfile(DISABLE_SOURDOUGH_F):
+      logger.debug("  %s found", DISABLE_SOURDOUGH_F)
       logger.critical('Chef converge disabled')
       return True
   logger.info('Disable switch not found')
@@ -997,27 +998,25 @@ def enableChefRuns():
   '''
   Remove the toggle file that disables Chef runs if it is present
   '''
-  disableFile = "/etc/sourdough/Disable-Sourdough"
 
   if not amRoot():
     raise RuntimeError, 'This must be run as root'
 
-  if os.path.isfile(disableFile):
-    print "Removing %s" % disableFile
-    os.remove(disableFile)
+  if os.path.isfile(DISABLE_SOURDOUGH_F):
+    print "Removing %s" % DISABLE_SOURDOUGH_F
+    os.remove(DISABLE_SOURDOUGH_F)
 
 
 def disableChefRuns():
   '''
   Create the toggle file that disables Chef runs
   '''
-  disableFile = "/etc/sourdough/Disable-Sourdough"
 
   if not amRoot():
     raise RuntimeError, 'This must be run as root'
 
-  with open(disableFile, 'w') as disabler:
-    print "Creating %s" % disableFile
+  with open(DISABLE_SOURDOUGH_F, 'w') as disabler:
+    print "Creating %s" % DISABLE_SOURDOUGH_F
     disabler.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 
@@ -1025,13 +1024,13 @@ def enableDebugMode():
   '''
   Remove the toggle file that enables Debug mode
   '''
-  debugFile = "/etc/sourdough/debug-sourdough"
+  ENABLE_SOURDOUGH_DEBUGGING_F = "/etc/sourdough/debug-sourdough"
 
   if not amRoot():
     raise RuntimeError, 'This must be run as root'
 
-  with open(debugFile, 'w') as disabler:
-    print "Creating %s" % debugFile
+  with open(ENABLE_SOURDOUGH_DEBUGGING_F, 'w') as disabler:
+    print "Creating %s" % ENABLE_SOURDOUGH_DEBUGGING_F
     disabler.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 
@@ -1039,14 +1038,13 @@ def disableDebugMode():
   '''
   Create the toggle file that enables debugging mode
   '''
-  debugFile = "/etc/sourdough/debug-sourdough"
 
   if not amRoot():
     raise RuntimeError, 'This must be run as root'
 
-  if os.path.isfile(debugFile):
-    print "Removing %s" % debugFile
-    os.remove(debugFile)
+  if os.path.isfile(ENABLE_SOURDOUGH_DEBUGGING_F):
+    print "Removing %s" % ENABLE_SOURDOUGH_DEBUGGING_F
+    os.remove(ENABLE_SOURDOUGH_DEBUGGING_F)
 
 
 if __name__ == '__main__':
