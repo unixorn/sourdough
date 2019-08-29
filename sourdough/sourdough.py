@@ -155,7 +155,7 @@ def writeKnob(name, value, knobDirectory='/etc/knobs'):
   loadSharedLogger()
   knobPath = "%s/%s" % (knobDirectory, name)
   if not os.path.isdir(knobDirectory):
-    this.logger('directory %s does not exist, creating it', knobDirectory)
+    this.logger.error('directory %s does not exist, creating it', knobDirectory)
     systemCall('mkdir -p %s' % knobDirectory)
   if value is not None:
     with open(knobPath, 'w') as knobFile:
