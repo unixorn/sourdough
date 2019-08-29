@@ -2,6 +2,10 @@
 
 ## 0.12.4
 
+Fix error in writeKnob - we were trying to call this.logger directly instead of this.logger.error
+
+## 0.12.4
+
 Added `sourdough-enable-chef`, `sourdough-disable-chef`, `sourdough-enable-debugging` and `sourdough-disable-debugging` convenience commands.
 
 ## 0.12.3
