@@ -1,5 +1,9 @@
 # Sourdough
 
+## 0.12.5
+
+* Added support to read volume tags and write the respective SCSI values into the `/etc/device-volumes.d` directory 
+
 ## 0.12.4
 
 Added `sourdough-enable-chef`, `sourdough-disable-chef`, `sourdough-enable-debugging` and `sourdough-disable-debugging` convenience commands.
