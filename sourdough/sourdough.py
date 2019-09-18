@@ -291,7 +291,12 @@ def loadVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNO
       with open(fpath, 'r') as vmwareConfig:
         vsphereSettings = toml.load(vmwareConfig)
         this.logger.debug('Loaded vSphere connection info: %r', vsphereSettings)
-        return vsphereSettings
+        if vsphereSettings['hostname'] and vsphereSettings['password'] and vsphereSettings['username']:
+          return vsphereSettings
+        else:
+          this.logger.critical('Failed to load all parameters from cached vSphereSettings toml file')
+          return None
+
     except RuntimeError:
       this.logger.critical('Error loading %s - is the toml valid?', fpath)
   else:
@@ -386,12 +391,14 @@ def connectVcenter():
   '''
   Connect to Vcenter Server
 
-  Returns the UUID and Vcenter Connect objects
+  Returns the UUID and Vcenter Connection objects dict
+  :rtype dict:
   '''
   uuid = getUUID()
   loadSharedLogger()
   secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
   secure.verify_mode=ssl.CERT_NONE
+  vSphereConnetionObjects = {}
 
   this.logger.debug('secure.verify_mode=ssl.CERT_NONE')
 
@@ -401,14 +408,9 @@ def connectVcenter():
     return None
   this.logger.debug('vSphereSettings: %r', vSphereSettings)
 
-  try:
-    hostname = vSphereSettings['hostname']
-    password = vSphereSettings['password']
-    username = vSphereSettings['username']
-  except KeyError:
-    this.logger.critical('Failed to load all parameters from cached vSphereSettings toml file')
-    return None
-
+  hostname = vSphereSettings['hostname']
+  password = vSphereSettings['password']
+  username = vSphereSettings['username']
   this.logger.debug('hostname=%s user=%s password=%s', hostname, username, password)
 
   try:
@@ -417,7 +419,11 @@ def connectVcenter():
     searcher = si.content.searchIndex
     this.logger.debug('Searching for VM for UUID %s', uuid)
     vm = searcher.FindByUuid(uuid=uuid, vmSearch=True)
-    return uuid, si, vm
+    vSphereConnetionObjects['uuid'] = uuid
+    vSphereConnetionObjects['si'] = si
+    vSphereConnetionObjects['vm'] = vm
+    print "Connection Objects", vSphereConnetionObjects
+    return vSphereConnetionObjects
   except socket.error:
     this.logger.info('Cannot connect to vSphere host %s to read VMWare tags', hostname)
 
@@ -438,7 +444,10 @@ def readVirtualMachineTag(tagName):
       this.logger.warning('Found %s, skipping vSphere reads', DISABLE_VSPHERE)
       return None
 
-    uuid, si, vm = connectVcenter()
+    vSphereConnetionObjects = connectVcenter()
+    uuid = vSphereConnetionObjects.get('uuid')
+    si = vSphereConnetionObjects.get('si')
+    vm = vSphereConnetionObjects.get('vm')
     if vm:
       this.logger.debug('Found VM object for UUID %s, loading tags', uuid)
       f = si.content.customFieldsManager.field
@@ -455,7 +464,10 @@ def volumeTag():
   '''
   loadSharedLogger()
   volumes = readKnobOrTag(name='Volumes')
-  uuid, si, vm = connectVcenter()
+  vSphereConnetionObjects = connectVcenter()
+  uuid = vSphereConnetionObjects.get('uuid')
+  si = vSphereConnetionObjects.get('si')
+  vm = vSphereConnetionObjects.get('vm')
   for k,v in dict(item.split("=") for item in volumes.split(",")).iteritems():
     file_path  = DEFAULT_VOLUMES_DIRECTORY + '/' + k
     if not os.path.exists(file_path):
