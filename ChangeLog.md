@@ -1,8 +1,12 @@
 # Sourdough
 
+## 0.12.6
+
+* Restrict read volume tags only in VMware environment 
+
 ## 0.12.5
 
-* Added support to read volume tags and write the respective SCSI values into the `/etc/device-volumes.d` directory 
+* Added support to read volume tags and write the respective SCSI values into the `/etc/device-volumes.d` directory
 
 ## 0.12.4
 

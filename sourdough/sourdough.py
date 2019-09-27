@@ -992,7 +992,8 @@ def runner(connection=None):
   except RuntimeError:
     environment = None
 
-  volumeTag()
+  if inVMware():
+    volumeTag()
 
   # How long should we wait for other chef-client processes to finish?
   convergeDelay = "%s" % getConvergeWait() # Convert to string to keep check_call happy
