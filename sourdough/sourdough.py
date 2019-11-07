@@ -23,6 +23,7 @@ import datetime
 import json
 import logging
 import os
+import re
 import socket
 import ssl
 import subprocess
@@ -55,6 +56,7 @@ DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 DISABLE_SOURDOUGH_F = "/etc/sourdough/Disable-Sourdough"
 DISABLE_VSPHERE = '/etc/sourdough/disable-vsphere'
 ENABLE_SOURDOUGH_DEBUGGING_F = "/etc/sourdough/debug-sourdough"
+DEFAULT_VOLUMES_DIRECTORY = '/etc/device-volumes.d'
 
 knobsCache = {}
 vmwareTags = {}
@@ -289,7 +291,12 @@ def loadVSphereSettings(knobName=DEFAULT_VSPHERE_KNOB, knobDirectory=DEFAULT_KNO
       with open(fpath, 'r') as vmwareConfig:
         vsphereSettings = toml.load(vmwareConfig)
         this.logger.debug('Loaded vSphere connection info: %r', vsphereSettings)
-        return vsphereSettings
+        if vsphereSettings['hostname'] and vsphereSettings['password'] and vsphereSettings['username']:
+          return vsphereSettings
+        else:
+          this.logger.critical('Failed to load all parameters from cached vSphereSettings toml file')
+          return None
+
     except RuntimeError:
       this.logger.critical('Error loading %s - is the toml valid?', fpath)
   else:
@@ -380,6 +387,45 @@ def detectVSphereHost():
     except socket.error:
       this.logger.info('Cannot connect to vSphere hypervisor %s', hostname)
 
+def connectVcenter():
+  '''
+  Connect to Vcenter Server
+
+  Returns the UUID and Vcenter Connection objects dict
+  :rtype dict:
+  '''
+  uuid = getUUID()
+  loadSharedLogger()
+  secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+  secure.verify_mode=ssl.CERT_NONE
+  vSphereConnetionObjects = {}
+
+  this.logger.debug('secure.verify_mode=ssl.CERT_NONE')
+
+  vSphereSettings = loadVSphereSettings()
+  if not vSphereSettings:
+    this.logger.error('Could not load vSphereSettings!')
+    return None
+  this.logger.debug('vSphereSettings: %r', vSphereSettings)
+
+  hostname = vSphereSettings['hostname']
+  password = vSphereSettings['password']
+  username = vSphereSettings['username']
+  this.logger.debug('hostname=%s user=%s password=%s', hostname, username, password)
+
+  try:
+    si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
+    this.logger.debug('SmartConnect succeeded')
+    searcher = si.content.searchIndex
+    this.logger.debug('Searching for VM for UUID %s', uuid)
+    vm = searcher.FindByUuid(uuid=uuid, vmSearch=True)
+    vSphereConnetionObjects['uuid'] = uuid
+    vSphereConnetionObjects['si'] = si
+    vSphereConnetionObjects['vm'] = vm
+    print "Connection Objects", vSphereConnetionObjects
+    return vSphereConnetionObjects
+  except socket.error:
+    this.logger.info('Cannot connect to vSphere host %s to read VMWare tags', hostname)
 
 def readVirtualMachineTag(tagName):
   '''
@@ -388,9 +434,6 @@ def readVirtualMachineTag(tagName):
   :param str tagName: tag to read
   :rtype: str
   '''
-  uuid = getUUID()
-  loadSharedLogger()
-
   # Check the tag cache first to avoid unnecessary vSphere interactions
   if tagName in vmwareTags:
     this.logger.debug('Cache hit for %s: %s', tagName, vmwareTags[tagName])
@@ -400,51 +443,49 @@ def readVirtualMachineTag(tagName):
     if os.path.isfile(DISABLE_VSPHERE):
       this.logger.warning('Found %s, skipping vSphere reads', DISABLE_VSPHERE)
       return None
-    secure=ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-    secure.verify_mode=ssl.CERT_NONE
 
-    this.logger.debug('secure.verify_mode=ssl.CERT_NONE')
+    vSphereConnetionObjects = connectVcenter()
+    uuid = vSphereConnetionObjects.get('uuid')
+    si = vSphereConnetionObjects.get('si')
+    vm = vSphereConnetionObjects.get('vm')
+    if vm:
+      this.logger.debug('Found VM object for UUID %s, loading tags', uuid)
+      f = si.content.customFieldsManager.field
+      for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
+        vmwareTags[k] = v
+        this.logger.debug('Caching tag:%s=%s', k, v)
 
-    vSphereSettings = loadVSphereSettings()
-    if not vSphereSettings:
-      this.logger.error('Could not load vSphereSettings!')
-      return None
-    this.logger.debug('vSphereSettings: %r', vSphereSettings)
 
-    try:
-      hostname = vSphereSettings['hostname']
-      password = vSphereSettings['password']
-      username = vSphereSettings['username']
-    except KeyError:
-      this.logger.critical('Failed to load all parameters from cached vSphereSettings toml file')
-      return None
+def volumeTag():
+  '''
+  Read Volume tags and determine the Disk Bus number and Unit number
 
-    this.logger.debug('hostname=%s user=%s password=%s', hostname, username, password)
-
-    try:
-      si= SmartConnect(host=hostname, user=username, pwd=password, sslContext=secure)
-      this.logger.debug('SmartConnect succeeded')
-      searcher = si.content.searchIndex
-      this.logger.debug('Searching for VM for UUID %s', uuid)
-      vm = searcher.FindByUuid(uuid=uuid, vmSearch=True)
-      if vm:
-        this.logger.debug('Found VM object for UUID %s, loading tags', uuid)
-        f = si.content.customFieldsManager.field
-        for k, v in [(x.name, v.value) for x in f for v in vm.customValue if x.key == v.key]:
-          vmwareTags[k] = v
-          this.logger.debug('Caching tag:%s=%s', k, v)
-      else:
-        this.logger.error('Could not find a vSphere VM record for %s', uuid)
-    except socket.error:
-      this.logger.info('Cannot connect to vSphere host %s to read VMWare tags', hostname)
-
-  if tagName in vmwareTags:
-    this.logger.debug('Found tag %s in cache', tagName)
-    return vmwareTags[tagName]
-  else:
-    this.logger.debug('Could not load tag %s from cache', tagName)
-    return None
-
+  Write those values into /etc/device-volumes.d directory
+  '''
+  loadSharedLogger()
+  volumes = readKnobOrTag(name='Volumes')
+  vSphereConnetionObjects = connectVcenter()
+  uuid = vSphereConnetionObjects.get('uuid')
+  si = vSphereConnetionObjects.get('si')
+  vm = vSphereConnetionObjects.get('vm')
+  for k,v in dict(item.split("=") for item in volumes.split(",")).iteritems():
+    file_path  = DEFAULT_VOLUMES_DIRECTORY + '/' + k
+    if not os.path.exists(file_path):
+      this.logger.debug('Checking Volume %s', v)
+      pattern = r".*\/{}.vmdk$".format(v)
+      for d in vm.config.hardware.device:
+        if type(d).__name__ == 'vim.vm.device.VirtualDisk' and re.match(pattern, d.backing.fileName):
+          disk = d
+      this.logger.debug('Disk name: %s', disk.backing.fileName)
+      for c in vm.config.hardware.device:
+        if c.key == disk.controllerKey:
+           controller = c
+      this.logger.debug('Disk %s bus Number: %s', disk.backing.fileName, controller.busNumber)
+      this.logger.debug('Disk %s unit Number: %s', disk.backing.fileName, disk.unitNumber)
+      file_content = "scsi:{}:{}".format(str(controller.busNumber), str(disk.unitNumber))
+      this.logger.debug('Writing %s in the file %s', file_content, file_path)
+      with open(file_path, 'w') as f:
+        f.write(file_content)
 
 def loadHostname():
   '''
@@ -950,6 +991,9 @@ def runner(connection=None):
     environment = getEnvironment()
   except RuntimeError:
     environment = None
+
+  if inVMware():
+    volumeTag()
 
   # How long should we wait for other chef-client processes to finish?
   convergeDelay = "%s" % getConvergeWait() # Convert to string to keep check_call happy
