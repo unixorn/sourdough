@@ -387,6 +387,7 @@ def detectVSphereHost():
     except socket.error:
       this.logger.info('Cannot connect to vSphere hypervisor %s', hostname)
 
+
 def connectVcenter():
   '''
   Connect to Vcenter Server
@@ -426,6 +427,7 @@ def connectVcenter():
     return vSphereConnetionObjects
   except socket.error:
     this.logger.info('Cannot connect to vSphere host %s to read VMWare tags', hostname)
+
 
 def readVirtualMachineTag(tagName):
   '''
