@@ -1,5 +1,9 @@
 # Sourdough
 
+## 0.12.7
+
+* Revert 0.12.6 until we fix the issues that have come up in EC2
+
 ## 0.12.6
 
 * Restrict read volume tags only in VMware environment 
