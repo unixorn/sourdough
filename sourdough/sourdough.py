@@ -132,14 +132,14 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
 
   knobpath = "%s/%s" % (knobDirectory, knobName)
   if not os.path.isfile(knobpath):
-    print 'readknob: No such file: %s' % (knobpath)
+    print 'readKnob: No such file: %s. This is normal.' % (knobpath)
     return None
   if os.access(knobpath, os.R_OK):
     with open(knobpath, 'r') as knobfile:
       data = ''.join(line.rstrip() for line in knobfile)
     return data
   else:
-    print 'readknob: Cannot read %s' % (knobpath)
+    print 'readKnob: Cannot read %s' % (knobpath)
     return None
 
 
@@ -470,27 +470,40 @@ def volumeTag():
   uuid = vSphereConnetionObjects.get('uuid')
   si = vSphereConnetionObjects.get('si')
   vm = vSphereConnetionObjects.get('vm')
-  try:
+  if volumes is not None:
+    this.logger.debug('volumes = %s', volumes)
     for k,v in dict(item.split("=") for item in volumes.split(",")).iteritems():
+      if not os.path.isdir(DEFAULT_VOLUMES_DIRECTORY):
+        this.logger.warning("%s missing, creating...", DEFAULT_VOLUMES_DIRECTORY)
+        systemCall("mkdir -p %s" % DEFAULT_VOLUMES_DIRECTORY)
       file_path  = DEFAULT_VOLUMES_DIRECTORY + '/' + k
       if not os.path.exists(file_path):
-        this.logger.debug('Checking Volume %s', v)
+        disk = None
+        this.logger.info('Checking Volume %s', v)
         pattern = r".*\/{}.vmdk$".format(v)
+        this.logger.debug("vm.config.hardware.device: %s", vm.config.hardware.device)
         for d in vm.config.hardware.device:
+          this.logger.info('Checking device %s', d)
           if type(d).__name__ == 'vim.vm.device.VirtualDisk' and re.match(pattern, d.backing.fileName):
+            this.logger.info("Found disk match %s", d.backing.fileName)
             disk = d
-        this.logger.debug('Disk name: %s', disk.backing.fileName)
-        for c in vm.config.hardware.device:
-          if c.key == disk.controllerKey:
-             controller = c
-        this.logger.debug('Disk %s bus Number: %s', disk.backing.fileName, controller.busNumber)
-        this.logger.debug('Disk %s unit Number: %s', disk.backing.fileName, disk.unitNumber)
-        file_content = "scsi:{}:{}".format(str(controller.busNumber), str(disk.unitNumber))
-        this.logger.debug('Writing %s in the file %s', file_content, file_path)
-        with open(file_path, 'w') as f:
-          f.write(file_content)
-  except ValueError:
-    this.logger.warning('Error reading Volume tag information, skipping')
+          else:
+            this.logger.info("Did not find disk")
+        if disk:
+          this.logger.info('Disk name: %s', disk.backing.fileName)
+          for c in vm.config.hardware.device:
+            if c.key == disk.controllerKey:
+               controller = c
+          file_content = "scsi:{}:{}".format(str(controller.busNumber), str(disk.unitNumber))
+          this.logger.info('Disk %s bus Number: %s', disk.backing.fileName, controller.busNumber)
+          this.logger.info('Disk %s unit Number: %s', disk.backing.fileName, disk.unitNumber)
+          this.logger.info('Writing %s in the file %s', file_content, file_path)
+          with open(file_path, 'w') as f:
+            f.write(file_content)
+        else:
+          this.logger.warning('disk not found!')
+  else:
+    this.logger.warning('No Volume tag information found, skipping')
 
 
 def loadHostname():
