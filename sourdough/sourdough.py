@@ -132,7 +132,7 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
 
   knobpath = "%s/%s" % (knobDirectory, knobName)
   if not os.path.isfile(knobpath):
-    print 'readKnob: No such file: %s. This is normal.' % (knobpath)
+    print 'readKnob: No such file: %s. This is normal, not all machines have every tag set.' % (knobpath)
     return None
   if os.access(knobpath, os.R_OK):
     with open(knobpath, 'r') as knobfile:
