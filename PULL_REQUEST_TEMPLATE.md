@@ -14,3 +14,4 @@
 <!--- Go over all the following points, and put an `x` in all the boxes that apply. -->
 - [ ] I have read the **CONTRIBUTING** document.
 - [ ] All new and existing tests passed.
+- [ ] My PR targets the testing branch, not master. We only merge from testing into master after conducting tests in EC2 and on VMWare.

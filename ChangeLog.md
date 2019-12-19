@@ -1,5 +1,11 @@
 # Sourdough
 
+## 1.0.1
+
+* Bump major version so we can do bugfix releases with clean semver numbers. We're using it in prod, it's a 1.0.
+* `sourdough` was raising a `ValueError` exception when the **Volume** tag was missing in VMWare. However, it's valid for that to be empty. We now catch the exception and ignore it so the empty case is handled.
+* Clean up some violations of the Python style guide.
+
 ## 0.12.7
 
 * Revert 0.12.6 until we fix the issues that have come up in EC2

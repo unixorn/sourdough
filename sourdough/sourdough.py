@@ -51,12 +51,12 @@ DEFAULT_REGION = 'undetermined-region'
 DEFAULT_RUNLIST = 'nucleus'
 DEFAULT_TOML_FILE = '/etc/sourdough/sourdough.toml'
 DEFAULT_VMWARE_CONFIG = '/etc/sourdough/vmware.toml'
+DEFAULT_VOLUMES_DIRECTORY = '/etc/device-volumes.d'
 DEFAULT_VSPHERE_KNOB = 'vsphere_host.toml'
 DEFAULT_WAIT_FOR_ANOTHER_CONVERGE = 600
 DISABLE_SOURDOUGH_F = "/etc/sourdough/Disable-Sourdough"
 DISABLE_VSPHERE = '/etc/sourdough/disable-vsphere'
 ENABLE_SOURDOUGH_DEBUGGING_F = "/etc/sourdough/debug-sourdough"
-DEFAULT_VOLUMES_DIRECTORY = '/etc/device-volumes.d'
 
 knobsCache = {}
 vmwareTags = {}
@@ -132,14 +132,14 @@ def readKnob(knobName, knobDirectory='/etc/knobs'):
 
   knobpath = "%s/%s" % (knobDirectory, knobName)
   if not os.path.isfile(knobpath):
-    print 'readknob: No such file: %s' % (knobpath)
+    print 'readKnob: No such file: %s. This is normal, not all machines have every tag set.' % (knobpath)
     return None
   if os.access(knobpath, os.R_OK):
     with open(knobpath, 'r') as knobfile:
       data = ''.join(line.rstrip() for line in knobfile)
     return data
   else:
-    print 'readknob: Cannot read %s' % (knobpath)
+    print 'readKnob: Cannot read %s' % (knobpath)
     return None
 
 
@@ -387,6 +387,7 @@ def detectVSphereHost():
     except socket.error:
       this.logger.info('Cannot connect to vSphere hypervisor %s', hostname)
 
+
 def connectVcenter():
   '''
   Connect to Vcenter Server
@@ -426,6 +427,7 @@ def connectVcenter():
     return vSphereConnetionObjects
   except socket.error:
     this.logger.info('Cannot connect to vSphere host %s to read VMWare tags', hostname)
+
 
 def readVirtualMachineTag(tagName):
   '''
@@ -468,24 +470,41 @@ def volumeTag():
   uuid = vSphereConnetionObjects.get('uuid')
   si = vSphereConnetionObjects.get('si')
   vm = vSphereConnetionObjects.get('vm')
-  for k,v in dict(item.split("=") for item in volumes.split(",")).iteritems():
-    file_path  = DEFAULT_VOLUMES_DIRECTORY + '/' + k
-    if not os.path.exists(file_path):
-      this.logger.debug('Checking Volume %s', v)
-      pattern = r".*\/{}.vmdk$".format(v)
-      for d in vm.config.hardware.device:
-        if type(d).__name__ == 'vim.vm.device.VirtualDisk' and re.match(pattern, d.backing.fileName):
-          disk = d
-      this.logger.debug('Disk name: %s', disk.backing.fileName)
-      for c in vm.config.hardware.device:
-        if c.key == disk.controllerKey:
-           controller = c
-      this.logger.debug('Disk %s bus Number: %s', disk.backing.fileName, controller.busNumber)
-      this.logger.debug('Disk %s unit Number: %s', disk.backing.fileName, disk.unitNumber)
-      file_content = "scsi:{}:{}".format(str(controller.busNumber), str(disk.unitNumber))
-      this.logger.debug('Writing %s in the file %s', file_content, file_path)
-      with open(file_path, 'w') as f:
-        f.write(file_content)
+  if volumes is not None:
+    this.logger.debug('volumes = %s', volumes)
+    for k,v in dict(item.split("=") for item in volumes.split(",")).iteritems():
+      if not os.path.isdir(DEFAULT_VOLUMES_DIRECTORY):
+        this.logger.warning("%s missing, creating...", DEFAULT_VOLUMES_DIRECTORY)
+        systemCall("mkdir -p %s" % DEFAULT_VOLUMES_DIRECTORY)
+      file_path  = DEFAULT_VOLUMES_DIRECTORY + '/' + k
+      if not os.path.exists(file_path):
+        disk = None
+        this.logger.info('Checking Volume %s', v)
+        pattern = r".*\/{}.vmdk$".format(v)
+        this.logger.debug("vm.config.hardware.device: %s", vm.config.hardware.device)
+        for d in vm.config.hardware.device:
+          this.logger.info('Checking device %s', d)
+          if type(d).__name__ == 'vim.vm.device.VirtualDisk' and re.match(pattern, d.backing.fileName):
+            this.logger.info("Found disk match %s", d.backing.fileName)
+            disk = d
+          else:
+            this.logger.info("Did not find disk")
+        if disk:
+          this.logger.info('Disk name: %s', disk.backing.fileName)
+          for c in vm.config.hardware.device:
+            if c.key == disk.controllerKey:
+               controller = c
+          file_content = "scsi:{}:{}".format(str(controller.busNumber), str(disk.unitNumber))
+          this.logger.info('Disk %s bus Number: %s', disk.backing.fileName, controller.busNumber)
+          this.logger.info('Disk %s unit Number: %s', disk.backing.fileName, disk.unitNumber)
+          this.logger.info('Writing %s in the file %s', file_content, file_path)
+          with open(file_path, 'w') as f:
+            f.write(file_content)
+        else:
+          this.logger.warning('disk not found!')
+  else:
+    this.logger.warning('No Volume tag information found, skipping')
+
 
 def loadHostname():
   '''
@@ -855,6 +874,7 @@ def infect(connection=None):
   logger = this.logger
 
   if isCheffed():
+    logger.error('This machine is already Cheffed')
     raise RuntimeError, 'This machine is already Cheffed'
 
   logger.info('Assimilating instance into Chef')
