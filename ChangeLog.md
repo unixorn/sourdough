@@ -1,5 +1,9 @@
 # Sourdough
 
+## 1.0.2
+
+* Added AttributeError condition
+
 ## 1.0.1
 
 * Bump major version so we can do bugfix releases with clean semver numbers. We're using it in prod, it's a 1.0.
@@ -12,7 +16,7 @@
 
 ## 0.12.6
 
-* Restrict read volume tags only in VMware environment 
+* Restrict read volume tags only in VMware environment
 
 ## 0.12.5
 

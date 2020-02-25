@@ -239,6 +239,8 @@ def readKnobOrTagValue(name, connection=None, knobDirectory='/etc/knobs'):
         this.logger.error('Could not read %s virtual machine tag', name)
     except RuntimeError:
       this.logger.error('Caught RuntimeError reading virtual machine tag')
+    except AttributeError:
+      this.logger.error('Caught AttributeError reading virtual machine tag')
 
   if not data:
     # Finally, look for a knob file if we couldn't read tag data.
