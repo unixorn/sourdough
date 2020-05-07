@@ -42,6 +42,12 @@ You must have `docker` and `docker-compose` installed on your machine to run the
 
 **WARNING** only run the tests inside a disposable container - they _will_ **_destroy_** the chef installation on your machine.
 
+# Uploads
+
+1. Make sure you're on the right branch and that you've updated the version in `setup.py`
+2. `make wheel`
+3. `make upload`
+
 # FAQs
 
 ## How are node names generated?
